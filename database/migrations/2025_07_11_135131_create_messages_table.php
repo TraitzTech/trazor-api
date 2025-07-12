@@ -13,8 +13,9 @@ return new class extends Migration
     {
         Schema::create('messages', function (Blueprint $table) {
             $table->id();
-            $table->uuid('sender');
+            $table->uuid('sender_id');
             $table->foreign('sender_id')->references('id')->on('users')->onDelete('cascade');
+
             $table->uuid('receiver_id');
             $table->foreign('receiver_id')->references('id')->on('users')->onDelete('cascade');
             $table->text('message');
