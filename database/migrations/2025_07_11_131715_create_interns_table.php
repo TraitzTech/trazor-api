@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('interns', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignId('specialty_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->string('institution')->nullable();
             $table->string('matric_number')->nullable();
             $table->string('hort_number')->default('5.0.0');
