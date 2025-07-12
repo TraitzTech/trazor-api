@@ -13,8 +13,9 @@ return new class extends Migration
     {
         Schema::create('admins', function (Blueprint $table) {
             $table->id();
+            $table->uuid('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->json('permissions')->nullabe();
+            $table->json('permissions')->nullable();
             $table->timestamps();
         });
     }

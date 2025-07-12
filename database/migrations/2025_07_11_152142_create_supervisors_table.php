@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('supervisors', function (Blueprint $table) {
             $table->id();
+            $table->uuid('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreignId('specialty_id')->constrained()->onDelete('cascade');
             $table->timestamps();
