@@ -42,6 +42,7 @@ class InternSeeder extends Seeder
             \App\Models\Intern::factory()->create([
                 'user_id' => $user->id,
                 'specialty_id' => $specialty->id,
+                'hort_number' => '4.0.0',
             ]);
         });
     }
