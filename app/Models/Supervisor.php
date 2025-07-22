@@ -11,9 +11,14 @@ class Supervisor extends Model
         'specialty_id',
     ];
 
-    protected function specialties()
+    public function specialty()
     {
-        return $this->hasMany(Specialty::class);
+        return $this->belongsTo(Specialty::class);
+    }
+
+    public function reviews()
+    {
+        return $this->hasMany(LogbookReview::class, 'reviewed_by');
     }
 
     public function user()

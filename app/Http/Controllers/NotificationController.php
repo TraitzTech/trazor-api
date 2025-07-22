@@ -53,21 +53,29 @@ class NotificationController extends Controller
 
         $serviceAccountPath = storage_path('app/firebase/serviceAccountKey.json');
 
-        $firebase = (new Factory)->withServiceAccount($serviceAccountPath);
-        $messaging = $firebase->createMessaging();
-
-        $notification = Notification::create($request->title, $request->body);
-        $message = CloudMessage::withTarget('token', $user->device_token)
-            ->withNotification($notification);
-
         try {
+            $firebase = (new Factory)->withServiceAccount($serviceAccountPath);
+            $messaging = $firebase->createMessaging();
+
+            $notification = Notification::create()
+                ->withTitle($request->title)
+                ->withBody($request->body);
+
+            $message = CloudMessage::withTarget('token', $user->device_token)
+                ->withNotification($notification);
+
             $messaging->send($message);
 
             return response()->json(['message' => 'Notification sent successfully.']);
         } catch (\Kreait\Firebase\Exception\Messaging\MessagingException $e) {
+            \Log::error('Messaging Exception', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+
             return response()->json(['error' => 'Messaging error: '.$e->getMessage()], 500);
         } catch (\Exception $e) {
+            \Log::error('General Exception', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+
             return response()->json(['error' => 'Error: '.$e->getMessage()], 500);
         }
+
     }
 }

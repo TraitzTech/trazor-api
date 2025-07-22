@@ -13,7 +13,12 @@ return new class extends Migration
     {
         Schema::table('interns', function (Blueprint $table) {
             if (! Schema::hasColumn('interns', 'specialty_id')) {
-                $table->foreignId('specialty_id')->after('user_id')->constrained('specialties')->onDelete('cascade');
+                // Allow nullable to avoid SQLite NOT NULL issue
+                $table->foreignId('specialty_id')
+                    ->nullable()
+                    ->after('user_id')
+                    ->constrained('specialties')
+                    ->onDelete('cascade');
             }
         });
     }
@@ -24,8 +29,10 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('interns', function (Blueprint $table) {
-            $table->dropForeign(['specialty_id']);
-            $table->dropColumn('specialty_id');
+            if (Schema::hasColumn('interns', 'specialty_id')) {
+                $table->dropForeign(['specialty_id']);
+                $table->dropColumn('specialty_id');
+            }
         });
     }
 };

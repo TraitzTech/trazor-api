@@ -36,14 +36,5 @@ class InternSeeder extends Seeder
             'institution' => 'NAHPI',
             'hort_number' => '4.0.0',
         ]);
-
-        User::factory(100)->create()->each(function ($user) use ($internRole, $specialty) {
-            $user->assignRole($internRole);
-            \App\Models\Intern::factory()->create([
-                'user_id' => $user->id,
-                'specialty_id' => $specialty->id,
-                'hort_number' => '4.0.0',
-            ]);
-        });
     }
 }

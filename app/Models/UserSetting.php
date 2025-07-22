@@ -4,20 +4,17 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Admin extends Model
+class UserSetting extends Model
 {
     protected $fillable = [
         'user_id',
-        'permissions',
+        'email_notifications',
+        'profile_public',
+        'two_factor_auth',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function reviews()
-    {
-        return $this->hasMany(LogbookReview::class, 'reviewed_by');
     }
 }

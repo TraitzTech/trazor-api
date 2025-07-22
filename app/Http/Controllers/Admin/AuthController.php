@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Helpers\ActivityLogger;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -40,6 +41,8 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken('admin-login')->plainTextToken;
+
+        ActivityLogger::log($user->id, 'User logged in');
 
         return response()->json([
             'message' => 'Login successful',

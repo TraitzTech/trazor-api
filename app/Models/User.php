@@ -30,6 +30,7 @@ class User extends Authenticatable
         'is_active',
         'last_login',
         'password',
+        'device_token', // Added for device token management
     ];
 
     public function admin()
@@ -45,6 +46,16 @@ class User extends Authenticatable
     public function supervisor()
     {
         return $this->hasOne(Supervisor::class);
+    }
+
+    public function settings()
+    {
+        return $this->hasOne(UserSetting::class);
+    }
+
+    public function activities()
+    {
+        return $this->hasMany(UserActivity::class);
     }
 
     /**
@@ -68,5 +79,16 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    protected static function booted()
+    {
+        static::created(function ($user) {
+            $user->settings()->create([
+                'email_notifications' => true,
+                'profile_public' => true,
+                'two_factor_auth' => false,
+            ]);
+        });
     }
 }
