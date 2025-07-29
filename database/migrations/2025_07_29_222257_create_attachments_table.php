@@ -14,7 +14,10 @@ return new class extends Migration
         Schema::create('attachments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('task_id')->constrained()->onDelete('cascade');
-            $table->foreignUuid('uploader_by')->constrained()->onDelete('cascade');
+            $$table->foreignUuid('uploader_by')
+                ->references('id')->on('users')
+                ->onDelete('cascade');
+
             $table->string('path');
             $table->timestamps();
         });
