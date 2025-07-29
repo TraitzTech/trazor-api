@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\ActivityLogger;
 use App\Helpers\AuthHelper;
 use App\Models\Logbook;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class LogbookController extends Controller
@@ -14,7 +17,7 @@ class LogbookController extends Controller
      */
     public function index()
     {
-        return response()->json(Logbook::with(['intern.user', 'intern.specialty', 'reviewer'])->latest()->get());
+        return response()->json(Logbook::with(['intern.user', 'intern.specialty', 'reviewer', 'reviews'])->latest()->get());
     }
 
     /**
@@ -55,9 +58,6 @@ class LogbookController extends Controller
             'next_day_plans' => 'nullable|string',
         ];
 
-        // Conditionally add intern_id validation based on user role.
-        // This assumes you have a role system, like Spatie's laravel-permission,
-        // where you can check roles using $user->hasRole().
         if ($user->hasRole('admin')) {
             $rules['intern_id'] = 'required|exists:interns,id';
         }
@@ -87,6 +87,8 @@ class LogbookController extends Controller
         // Eager load relationships for notifications and response
         $logbook->load('intern.user', 'intern.specialty');
         $intern = $logbook->intern;
+
+        ActivityLogger::log($intern->user->id, 'Logbook filled');
 
         // Notify the intern who submitted
         if ($intern && $intern->user && $intern->user->device_token) {
@@ -134,10 +136,27 @@ class LogbookController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $logbook = Logbook::findOrFail($id);
-        $logbook->update($request->all());
+        if (! $id) {
+            return response()->json(['message' => 'Logbook ID is required'], 422);
+        }
 
-        return response()->json(['message' => 'Updated', 'logbook' => $logbook]);
+        try {
+            $logbook = Logbook::findOrFail($id);
+
+            $logbook->update($request->all());
+
+            return response()->json([
+                'message' => 'Logbook updated successfully',
+                'logbook' => $logbook,
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['message' => 'Logbook not found'], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'An error occurred while updating the logbook',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -145,8 +164,52 @@ class LogbookController extends Controller
      */
     public function destroy($id)
     {
-        Logbook::findOrFail($id)->delete();
+        if (! $id) {
+            return response()->json(['message' => 'Logbook ID is required'], 422);
+        }
 
-        return response()->json(['message' => 'Deleted']);
+        try {
+            $logbook = Logbook::findOrFail($id);
+            $logbook->delete();
+
+            ActivityLogger::log($logbook->intern->user->id, 'Logbook deleted');
+
+            return response()->json(['message' => 'Logbook deleted successfully']);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['message' => 'Logbook not found'], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'An error occurred while deleting the logbook',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function generatePdf(Request $request)
+    {
+        $data = $request->validate([
+            'student' => 'required|array',
+            'entries' => 'required|array',
+            'period_from' => 'required|date',
+            'period_to' => 'required|date',
+            'week' => 'required|integer',
+        ]);
+
+        $pdf = Pdf::loadView('pdf.logbook', [
+            'student' => $data['student'],
+            'entries' => $data['entries'],
+            'remarks' => $data['remarks'] ?? '',
+            'period_from' => $data['period_from'],
+            'period_to' => $data['period_to'],
+            'week' => $data['week'],
+        ]);
+
+        $filename = 'logbooks/week_'.$data['week'].'_'.$data['student']['matric_number'].'.pdf';
+        Storage::disk('public')->put($filename, $pdf->output());
+
+        return response()->json([
+            'message' => 'Logbook PDF generated',
+            'url' => Storage::url($filename),
+        ]);
     }
 }

@@ -35,6 +35,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('logbooks', LogbookController::class);
     Route::post('/logbooks/{id}/review', [LogbookReviewController::class, 'store']);
+    Route::post('/logbooks/generate-pdf', [LogbookController::class, 'generatePdf']);
     Route::get('/intern/logbooks', [LogbookController::class, 'internLogbooks'])->middleware('auth:sanctum');
 
 });
