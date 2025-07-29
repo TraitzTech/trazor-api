@@ -6,9 +6,12 @@ use App\Helpers\ActivityLogger;
 use App\Helpers\AuthHelper;
 use App\Models\Logbook;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class LogbookController extends Controller
 {
@@ -37,6 +40,57 @@ class LogbookController extends Controller
             ->get();
 
         return response()->json($logbooks);
+    }
+
+    private function isWeekComplete($internId, $weekNumber)
+    {
+        $daysFilled = Logbook::where('intern_id', $internId)
+            ->where('week_number', $weekNumber)
+            ->get()
+            ->map(function ($log) {
+                $dayName = Carbon::parse($log->date)->format('l'); // Full day name like 'Monday'
+
+                return strtolower($dayName);
+            })
+            ->unique();
+
+        \Log::info("Days filled for week $weekNumber: ".$daysFilled->implode(', '));
+
+        $requiredDays = collect(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
+        $isComplete = $requiredDays->every(function ($day) use ($daysFilled) {
+            return $daysFilled->contains($day);
+        });
+
+        \Log::info("Week $weekNumber is complete: ".($isComplete ? 'Yes' : 'No'));
+
+        return $isComplete;
+    }
+
+    /**
+     * Calculate week number based on internship start date
+     */
+    private function calculateWeekNumber($date, $startDate)
+    {
+        if (! $startDate) {
+            return 1;
+        }
+
+        // Parse dates and ensure they're in the correct timezone
+        $logDate = Carbon::parse($date)->startOfDay();
+        $start = Carbon::parse($startDate)->startOfDay();
+
+        // If log date is before start date, return week 1
+        if ($logDate->lt($start)) {
+            return 1;
+        }
+
+        // Calculate weeks since start
+        $daysDiff = $start->diffInDays($logDate);
+        $weekNumber = (int) intval(floor($daysDiff / 7)) + 1;
+
+        \Log::info("Calculate Week - Date: $logDate, Start: $start, Days diff: $daysDiff, Week: $weekNumber");
+
+        return max(1, $weekNumber);
     }
 
     /**
@@ -79,17 +133,136 @@ class LogbookController extends Controller
                 return response()->json(['message' => 'Authenticated user does not have an intern profile.'], 422);
             }
             $validated['intern_id'] = $user->intern->id;
+            $intern = $user->intern;
+        } else {
+            // Admin creating for an intern
+            $intern = \App\Models\Intern::findOrFail($validated['intern_id']);
         }
 
         $validated['submitted_at'] = now();
+
+        // Use the improved week calculation
+        $validated['week_number'] = $this->calculateWeekNumber($validated['date'], $intern->start_date);
+
+        \Log::info("Storing logbook - Date: {$validated['date']}, Week: {$validated['week_number']}, Intern Start: {$intern->start_date}");
+
+        // Check for duplicate entries (same intern, same date)
+        $existingLogbook = Logbook::where('intern_id', $validated['intern_id'])
+            ->whereDate('date', $validated['date'])
+            ->first();
+
+        if ($existingLogbook) {
+            return response()->json([
+                'message' => 'A logbook entry already exists for this date.',
+                'existing_logbook' => $existingLogbook,
+            ], 409);
+        }
+
         $logbook = Logbook::create($validated);
 
         // Eager load relationships for notifications and response
         $logbook->load('intern.user', 'intern.specialty');
-        $intern = $logbook->intern;
 
         ActivityLogger::log($intern->user->id, 'Logbook filled');
 
+        // Check if week is complete and generate PDF
+        \Log::info("Checking week completion for intern {$validated['intern_id']}, week {$validated['week_number']}");
+
+        if ($validated['week_number'] && $this->isWeekComplete($validated['intern_id'], $validated['week_number'])) {
+            try {
+                $filename = $this->generateWeeklyPdf($validated['intern_id'], $validated['week_number']);
+                \Log::info("Weekly PDF generated successfully: $filename");
+
+                // Add PDF URL to response
+                $response['pdf_generated'] = true;
+                $response['pdf_filename'] = $filename;
+            } catch (\Exception $e) {
+                \Log::error('PDF generation failed: '.$e->getMessage());
+                \Log::error('PDF generation stack trace: '.$e->getTraceAsString());
+                // Don't fail the logbook creation if PDF generation fails
+                $response['pdf_error'] = $e->getMessage();
+            }
+        } else {
+            \Log::info("Week not complete yet or week number is null. Week: {$validated['week_number']}");
+        }
+
+        // Send notifications
+        $this->sendNotifications($intern);
+
+        $response = [
+            'message' => 'Logbook Created',
+            'logbook' => $logbook,
+            'week_number' => $validated['week_number'],
+        ];
+
+        // Check if PDF exists and add URL
+        $filename = 'logbooks/week_'.$validated['week_number'].'_'.$intern->matric_number.'.pdf';
+        if (Storage::disk('public')->exists($filename)) {
+            $response['pdf_url'] = Storage::url($filename);
+        }
+
+        return response()->json($response, 201);
+    }
+
+    /**
+     * Generate PDF for a complete week
+     */
+    private function generateWeeklyPdf($internId, $weekNumber)
+    {
+        $intern = \App\Models\Intern::with('user', 'specialty')->findOrFail($internId);
+
+        $entriesQuery = Logbook::where('intern_id', $internId)
+            ->where('week_number', $weekNumber)
+            ->orderBy('date')
+            ->get();
+
+        if ($entriesQuery->count() < 5) {
+            throw new \Exception("Not enough entries for week $weekNumber");
+        }
+
+        $entries = $entriesQuery
+            ->keyBy(function ($log) {
+                return strtolower(Carbon::parse($log->date)->format('l'));
+            })
+            ->map(function ($log) {
+                return $log->content;
+            });
+
+        $dates = $entriesQuery->pluck('date')->map(function ($d) {
+            return Carbon::parse($d);
+        });
+
+        $period_from = $dates->min()->toDateString();
+        $period_to = $dates->max()->toDateString();
+
+        $student = [
+            'name' => $intern->user->name,
+            'matric_number' => $intern->matric_number,
+            'level' => $intern->level,
+            'department' => $intern->department,
+            'option' => $intern->option,
+        ];
+
+        $pdf = Pdf::loadView('pdf.logbook', [
+            'student' => $student,
+            'entries' => $entries,
+            'remarks' => '',
+            'period_from' => $period_from,
+            'period_to' => $period_to,
+            'week' => $weekNumber,
+        ]);
+
+        $filename = 'logbooks/week_'.$weekNumber.'_'.$student['matric_number'].'.pdf';
+        Storage::disk('public')->put($filename, $pdf->output());
+
+        return $filename;
+    }
+
+    /**
+     * Send notifications to intern and supervisors
+     */
+    private function sendNotifications($intern)
+    {
         // Notify the intern who submitted
         if ($intern && $intern->user && $intern->user->device_token) {
             app(NotificationController::class)->sendNotification(new Request([
@@ -113,8 +286,6 @@ class LogbookController extends Controller
                 ]));
             }
         }
-
-        return response()->json(['message' => 'Created', 'logbook' => $logbook], 201);
     }
 
     /**
@@ -131,6 +302,23 @@ class LogbookController extends Controller
         return response()->json($logbook);
     }
 
+    public function downloadPdf($week, Request $request)
+    {
+        $intern = AuthHelper::getUserFromBearerToken($request)->intern;
+
+        if (! $intern) {
+            return response()->json(['message' => 'Unauthorized.'], 401);
+        }
+
+        $filename = 'logbooks/week_'.$week.'_'.$intern->matric_number.'.pdf';
+
+        if (! Storage::disk('public')->exists($filename)) {
+            return response()->json(['message' => 'PDF not found.'], 404);
+        }
+
+        return response()->download(storage_path('app/public/'.$filename));
+    }
+
     /**
      * Update the specified resource in storage.
      */
@@ -142,7 +330,6 @@ class LogbookController extends Controller
 
         try {
             $logbook = Logbook::findOrFail($id);
-
             $logbook->update($request->all());
 
             return response()->json([
@@ -210,6 +397,120 @@ class LogbookController extends Controller
         return response()->json([
             'message' => 'Logbook PDF generated',
             'url' => Storage::url($filename),
+        ]);
+    }
+
+    /**
+     * Fix existing logbooks with null week numbers
+     */
+    public function fixWeekNumbers(Request $request)
+    {
+        $internId = AuthHelper::getUserFromBearerToken($request)->intern->id;
+
+        if ($internId) {
+            $intern = \App\Models\Intern::findOrFail($internId);
+            $logbooks = Logbook::where('intern_id', $internId)
+                ->whereNull('week_number')
+                ->get();
+        } else {
+            $logbooks = Logbook::whereNull('week_number')->get();
+        }
+
+        $updated = 0;
+        foreach ($logbooks as $logbook) {
+            $intern = $logbook->intern;
+            $weekNumber = (int) $this->calculateWeekNumber($logbook->date, $intern->start_date);
+            $logbook->update(['week_number' => $weekNumber]);
+            $updated++;
+
+            \Log::info("Fixed logbook ID {$logbook->id}: Date {$logbook->date} -> Week $weekNumber");
+        }
+
+        return response()->json([
+            'message' => "Fixed $updated logbooks",
+            'updated_count' => $updated,
+        ]);
+    }
+
+    /**
+     * Manually trigger PDF generation for a completed week
+     */
+    public function generateWeekPdf(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'intern_id' => 'required|exists:interns,id',
+                'week_number' => 'required|integer|min:1',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $internId = AuthHelper::getUserFromBearerToken($request)->intern->id;
+        $weekNumber = (int) $validated['week_number'];
+
+        Log::info("Manual PDF generation requested for intern $internId, week $weekNumber");
+
+        if (! $this->isWeekComplete($internId, $weekNumber)) {
+            return response()->json([
+                'message' => 'Week is not complete yet',
+                'intern_id' => $internId,
+                'week_number' => $weekNumber,
+                'is_complete' => false,
+            ], 400);
+        }
+
+        try {
+            $filename = $this->generateWeeklyPdf($internId, $weekNumber);
+
+            return response()->json([
+                'message' => 'PDF generated successfully',
+                'filename' => $filename,
+                'url' => Storage::url($filename),
+                'intern_id' => $internId,
+                'week_number' => $weekNumber,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Manual PDF generation failed: '.$e->getMessage());
+
+            return response()->json([
+                'message' => 'PDF generation failed',
+                'error' => $e->getMessage(),
+                'intern_id' => $internId,
+                'week_number' => $weekNumber,
+            ], 500);
+        }
+    }
+
+    /**
+     * Debug method to check week completion status
+     */
+    public function checkWeekStatus(Request $request)
+    {
+        $internId = AuthHelper::getUserFromBearerToken($request)->intern->id;
+        $weekNumber = (int) $request->input('week_number');
+
+        $entries = Logbook::where('intern_id', $internId)
+            ->where('week_number', $weekNumber)
+            ->get();
+
+        $daysFilled = $entries->map(function ($log) {
+            return [
+                'date' => $log->date,
+                'day' => Carbon::parse($log->date)->format('l'),
+                'day_lower' => strtolower(Carbon::parse($log->date)->format('l')),
+            ];
+        });
+
+        return response()->json([
+            'intern_id' => $internId,
+            'week_number' => $weekNumber,
+            'entries_count' => $entries->count(),
+            'days_filled' => $daysFilled,
+            'is_complete' => $this->isWeekComplete($internId, $weekNumber),
         ]);
     }
 }

@@ -30,6 +30,48 @@ class Intern extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function tasks()
+    {
+        return $this->belongsToMany(Task::class, 'task_intern')->withTimestamps();
+    }
+
+    // NEW relationship - with individual status tracking
+    public function tasksWithStatus()
+    {
+        return $this->belongsToMany(Task::class, 'task_intern')
+            ->withPivot(['status', 'started_at', 'completed_at', 'intern_notes'])
+            ->withTimestamps();
+    }
+
+    // NEW method - Get intern's task statistics
+    public function getTaskStatistics()
+    {
+        $tasks = $this->tasksWithStatus;
+        $total = $tasks->count();
+
+        if ($total === 0) {
+            return [
+                'total_tasks' => 0,
+                'pending' => 0,
+                'in_progress' => 0,
+                'completed' => 0,
+                'completion_rate' => 0,
+            ];
+        }
+
+        $pending = $tasks->where('pivot.status', 'pending')->count();
+        $inProgress = $tasks->where('pivot.status', 'in_progress')->count();
+        $completed = $tasks->where('pivot.status', 'done')->count();
+
+        return [
+            'total_tasks' => $total,
+            'pending' => $pending,
+            'in_progress' => $inProgress,
+            'completed' => $completed,
+            'completion_rate' => round(($completed / $total) * 100, 2),
+        ];
+    }
+
     protected static function boot()
     {
         parent::boot();

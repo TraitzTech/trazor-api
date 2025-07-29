@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('institution')->nullable();
             $table->string('matric_number')->nullable();
             $table->string('hort_number')->default('5.0.0');
-            $table->date('start_date')->nullable();
+            $table->date('start_date')->default('2025-08-05');
             $table->date('end_date')->nullable();
             $table->timestamps();
         });
