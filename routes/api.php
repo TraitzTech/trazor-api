@@ -25,6 +25,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/created-by', [AnnouncementController::class, 'getByCreator']);
         Route::get('/for-intern', [AnnouncementController::class, 'getForIntern']);
 
+        // Add these new routes for update and delete
+        Route::put('/{announcement}', [AnnouncementController::class, 'update']);
+        Route::delete('/{announcement}', [AnnouncementController::class, 'destroy']);
     });
 
     Route::prefix('specialties')->group(function () {
@@ -46,31 +49,39 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logbooks/fix-week-numbers', [LogbookController::class, 'fixWeekNumbers']);
     Route::post('/logbooks/generate-week-pdf', [LogbookController::class, 'generateWeekPdf']);
 
+    Route::apiResource('tasks', TaskController::class);
     Route::prefix('tasks')->group(function () {
-        Route::apiResource('/', TaskController::class);
         Route::patch('/{id}/status', [TaskController::class, 'updateStatus']);
 
-        Route::post('/{id}/comments', [CommentController::class, 'store']);
-        Route::post('/{id}/attachments', [AttachmentController::class, 'store']);
+        Route::get('/{id}/comments', [CommentController::class, 'getTaskComments']);
+
+        Route::post('/comments', [CommentController::class, 'store']);
+        Route::post('/tasks/{id}/attachments', [AttachmentController::class, 'store']);
 
         // Get attachments by task
-        Route::get('{id}/attachments', [AttachmentController::class, 'index']);
+        Route::post('/{id}/attachments', [AttachmentController::class, 'store']);
+        Route::get('/{id}/attachments', [AttachmentController::class, 'index']);
 
         Route::put('{id}/intern/status', [TaskController::class, 'updateInternStatus']);
         Route::get('{id}/progress', [TaskController::class, 'showWithProgress']);
 
+        Route::prefix('intern')->group(function () {
+            Route::get('dashboard', [TaskController::class, 'getInternDashboard']);
+        });
     });
 
-    Route::prefix('intern')->group(function () {
-        Route::get('dashboard', [TaskController::class, 'getInternDashboard']);
+    Route::prefix('attachments')->group(function () {
+        Route::get('/', [AttachmentController::class, 'index']);
+        Route::get('/{attachment}', [AttachmentController::class, 'show']);
+        Route::delete('/{attachment}', [AttachmentController::class, 'destroy']);
+        Route::post('/{attachment}/update', [AttachmentController::class, 'update']);
+        // Download attachment
+        Route::get('/{attachment}/download', [AttachmentController::class, 'download']);
+
     });
 
     // Comment routes
     Route::apiResource('comments', CommentController::class);
-
-    Route::apiResource('attachments', AttachmentController::class);
-    // Download attachment
-    Route::get('attachments/{attachment}/download', [AttachmentController::class, 'download']);
 
 });
 

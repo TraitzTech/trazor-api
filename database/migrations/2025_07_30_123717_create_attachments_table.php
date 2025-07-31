@@ -11,14 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tasks', function (Blueprint $table) {
+        Schema::create('attachments', function (Blueprint $table) {
             $table->id();
-            $table->string('title');
+            $table->foreignId('task_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('uploaded_by')->constrained('users')->cascadeOnDelete();
+
+            $table->string('path');
+            $table->string('original_name');
+            $table->integer('file_size')->nullable();
+            $table->string('mime_type')->nullable();
             $table->text('description')->nullable();
-            $table->date('due_date')->nullable();
-            $table->enum('status', ['pending', 'in_progress', 'done'])->default('pending');
-            $table->unsignedBigInteger('assigned_by');
-            $table->foreignId('specialty_id')->nullable()->constrained()->onDelete('set null');
             $table->timestamps();
         });
     }
@@ -28,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tasks');
+        Schema::dropIfExists('attachments');
     }
 };

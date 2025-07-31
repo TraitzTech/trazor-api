@@ -11,6 +11,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -127,6 +128,7 @@ class AdminController extends Controller
                     'location' => $intern->user->location ?? 'Unknown',
                     'institution' => $intern->institution ?? 'N/A',
                     'matricNumber' => $intern->matric_number ?? 'N/A',
+                    'hort_number' => $intern->hort_number,
                     'specialty' => optional($intern->specialty)->name ?? 'Unassigned',
                     'role' => 'intern',
                 ];
@@ -260,35 +262,116 @@ class AdminController extends Controller
     {
         $user = User::findOrFail($id);
 
-        $validated = Validator::make($request->all(), [
+        // Common validation for all users
+        $commonRules = [
             'name' => 'required|string|max:255',
             'email' => [
                 'required',
                 'email',
-                // This ensures the email is unique, but ignores the current user's email
                 Rule::unique('users', 'email')->ignore($user->id),
             ],
-            // Update the allowed roles to match your frontend dropdown
             'role' => 'required|in:intern,supervisor,admin,super_admin',
             'status' => 'required|in:active,inactive,pending,suspended',
             'phone' => 'nullable|string|max:20',
             'location' => 'nullable|string|max:255',
             'bio' => 'nullable|string',
-            'institution' => 'nullable|string|max:255',
-            'specialty' => 'nullable|string|max:255',
             'avatar' => 'nullable|string',
-        ]);
+        ];
 
-        if ($validated->fails()) {
-            return response()->json(['errors' => $validated->errors()], 422);
+        // Role-specific validation
+        $roleSpecificRules = [];
+        $role = $request->input('role', $user->role);
+
+        if ($role === 'intern') {
+            $roleSpecificRules = [
+                'institution' => 'required|string|max:255',
+                'specialty' => 'required|exists:specialties,id',
+                'hort_number' => 'nullable|string|max:10',
+            ];
+        } elseif ($role === 'supervisor') {
+            $roleSpecificRules = [
+                'specialty' => 'required|exists:specialties,id',
+            ];
         }
 
-        // Only update fields that are present in the validated data.
-        // This is safer than directly passing $request->all() as it ensures
-        // only allowed fields are updated.
-        $user->update($validated->validated());
+        // FIXED: Using the validator() helper function
+        $validator = validator($request->all(), array_merge($commonRules, $roleSpecificRules));
 
-        return response()->json(['message' => 'User updated successfully', 'user' => $user->fresh()]);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Start transaction to ensure data consistency
+        DB::beginTransaction();
+
+        try {
+            // Update user fields
+            $userFields = $validator->validated();
+            $user->update($userFields);
+
+            // Update role-specific fields
+            if ($role === 'intern') {
+                $internData = $validator->validated();
+
+                if ($user->intern) {
+                    $user->intern()->update([
+                        'specialty_id' => $internData['specialty'],
+                        'institution' => $internData['institution'],
+                        'hort_number' => $internData['hort_number'],
+                    ]);
+                } else {
+                    $user->intern()->create([
+                        'specialty_id' => $internData['specialty'],
+                        'institution' => $internData['institution'],
+                        'hort_number' => $internData['hort_number'],
+                    ]);
+                    $user->supervisor()->delete();
+                    $user->admin()->delete();
+                }
+            } elseif ($role === 'supervisor') {
+                $supervisorData = $validator->validated();
+
+                if ($user->supervisor) {
+                    $user->supervisor()->update([
+                        'specialty_id' => $supervisorData['specialty'],
+                    ]);
+                } else {
+                    $user->supervisor()->create([
+                        'specialty_id' => $supervisorData['specialty'],
+                    ]);
+                    $user->intern()->delete();
+                    $user->admin()->delete();
+                }
+            } elseif (in_array($role, ['admin', 'super_admin'])) {
+                $user->intern()->delete();
+                $user->supervisor()->delete();
+
+                if (! $user->admin) {
+                    $user->admin()->create([
+                        'permissions' => json_encode([]),
+                    ]);
+                }
+            }
+
+            // Update role and status
+            $user->syncRoles([$role]);
+            $user->update(['is_active' => $request->status === 'active']);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'User updated successfully',
+                'user' => $user->fresh()->load(['intern', 'supervisor', 'admin']),
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Error updating user',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

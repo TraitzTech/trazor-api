@@ -3,10 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\AuthHelper;
+use App\Http\Resources\TaskResource;
 use App\Models\Intern;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class TaskController extends Controller
@@ -17,14 +21,15 @@ class TaskController extends Controller
     public function index()
     {
         try {
-            $tasks = Task::with(['interns', 'specialty', 'comments', 'attachments'])
+            $tasks = Task::with(['interns.user', 'specialty', 'comments.user', 'attachments'])
                 ->orderBy('created_at', 'desc')
                 ->get();
 
             return response()->json([
                 'success' => true,
-                'data' => $tasks,
+                'data' => TaskResource::collection($tasks),
             ]);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -55,12 +60,14 @@ class TaskController extends Controller
                 'intern_ids.*' => 'exists:interns,id',
             ]);
 
+            $user = AuthHelper::getUserFromBearerToken($request);
+
             $task = Task::create([
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
                 'due_date' => $validated['due_date'] ?? null,
                 'status' => $validated['status'] ?? 'pending',
-                'assigned_by' => auth()->id(),
+                'assigned_by' => $user->id,
                 'specialty_id' => $validated['specialty_id'] ?? null,
             ]);
 
@@ -111,8 +118,44 @@ class TaskController extends Controller
     public function show($id)
     {
         try {
-            $task = Task::with(['interns', 'specialty', 'comments.user', 'attachments'])
-                ->findOrFail($id);
+            $task = Task::with([
+                // Load interns with their individual task status (pivot data)
+                'interns' => function ($query) {
+                    $query->with('user', 'specialty')
+                        ->withPivot(['status', 'started_at', 'completed_at', 'intern_notes'])
+                        ->orderBy('pivot_created_at', 'desc'); // Order by when they were assigned
+                },
+                'specialty',
+                'comments' => function ($query) {
+                    $query->with('user')
+                        ->orderBy('created_at', 'desc');
+                },
+                'attachments' => function ($query) {
+                    $query->orderBy('created_at', 'desc');
+                },
+            ])->findOrFail($id);
+
+            // Transform the data to include pivot information more clearly
+            $task->interns->transform(function ($intern) {
+                return [
+                    'id' => $intern->id,
+                    'user_id' => $intern->user_id,
+                    'institution' => $intern->institution,
+                    'matric_number' => $intern->matric_number,
+                    'hort_number' => $intern->hort_number,
+                    'user' => $intern->user,
+                    'specialty' => $intern->specialty,
+                    // Pivot data (individual task submission info)
+                    'submission' => [
+                        'status' => $intern->pivot->status ?? 'pending',
+                        'started_at' => $intern->pivot->started_at,
+                        'completed_at' => $intern->pivot->completed_at,
+                        'intern_notes' => $intern->pivot->intern_notes,
+                        'assigned_at' => $intern->pivot->created_at,
+                        'updated_at' => $intern->pivot->updated_at,
+                    ],
+                ];
+            });
 
             return response()->json([
                 'success' => true,
@@ -373,22 +416,50 @@ class TaskController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Update task status (admin/supervisor only).
      */
-    public function destroy($id)
+    public function updateStatus(Request $request, $id)
     {
         try {
-            $task = Task::findOrFail($id);
+            $validated = $request->validate([
+                'status' => 'required|in:pending,in_progress,done',
+            ]);
 
-            // Detach all interns
-            $task->interns()->detach();
+            $task = Task::with(['interns'])->findOrFail($id);
+            $oldStatus = $task->status;
 
-            // Delete the task (comments and attachments will be deleted by cascade if set up)
-            $task->delete();
+            // Only continue if status is actually changing
+            if ($oldStatus === $validated['status']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Status is already set to the specified value',
+                ], 400);
+            }
+
+            $task->status = $validated['status'];
+            $task->save();
+
+            // Notify all stakeholders (assigned interns, task creator, supervisors)
+            $assignedInternIds = $task->interns->pluck('id')->toArray();
+
+            $changes = [
+                'status' => [
+                    'from' => $oldStatus,
+                    'to' => $validated['status'],
+                ],
+            ];
+
+            $this->sendTaskUpdateNotifications($task, $changes, $assignedInternIds, $assignedInternIds);
+
+            // Also notify supervisors + creator explicitly about the update
+            $this->notifyStakeholdersOfStatusChange($task, $validated['status']);
+
+            $task->load(['interns', 'specialty']);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Task deleted successfully',
+                'message' => 'Task status updated successfully',
+                'data' => $task,
             ]);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -396,11 +467,80 @@ class TaskController extends Controller
                 'success' => false,
                 'message' => 'Task not found',
             ], 404);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete task',
+                'message' => 'Failed to update task status',
                 'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy($id)
+    {
+        try {
+            $task = Task::findOrFail($id);
+
+            DB::beginTransaction();
+
+            // Delete physical attachment files from storage
+            if ($task->attachments && $task->attachments->count() > 0) {
+                foreach ($task->attachments as $attachment) {
+                    // Delete the physical file from storage
+                    if ($attachment->file_path && Storage::exists($attachment->file_path)) {
+                        Storage::delete($attachment->file_path);
+                    }
+
+                    // Delete the attachment record
+                    $attachment->delete();
+                }
+            }
+
+            // Delete all comments related to this task
+            if ($task->comments && $task->comments->count() > 0) {
+                $task->comments()->delete();
+            }
+
+            // Delete all task_intern pivot records (detach all interns)
+            $task->interns()->detach();
+
+            // Finally, delete the task itself
+            $task->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Task and all related data deleted successfully',
+            ]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Task not found',
+            ], 404);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error deleting task: '.$e->getMessage(), [
+                'task_id' => $id,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete task',
+                'error' => config('app.debug') ? $e->getMessage() : 'An error occurred while deleting the task',
             ], 500);
         }
     }
@@ -450,13 +590,33 @@ class TaskController extends Controller
      */
     public function updateInternStatus(Request $request, $taskId)
     {
-
-        $internId = AuthHelper::getUserFromBearerToken($request)->intern->id;
         try {
+            $user = AuthHelper::getUserFromBearerToken($request);
             $validated = $request->validate([
                 'status' => 'required|in:pending,in_progress,done',
                 'notes' => 'nullable|string|max:500',
+                'intern_id' => 'nullable|exists:interns,id', // Only required for admins/supervisors
             ]);
+
+            // Determine intern ID based on user role
+            if ($user->hasRole(['admin', 'supervisor'])) {
+                if (empty($validated['intern_id'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Intern ID is required for admin/supervisor',
+                    ], 400);
+                }
+                $internId = $validated['intern_id'];
+            } else {
+                // For interns, use their own ID
+                if (! $user->intern) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'User is not associated with an intern profile',
+                    ], 403);
+                }
+                $internId = $user->intern->id;
+            }
 
             $task = Task::findOrFail($taskId);
             $intern = Intern::findOrFail($internId);
@@ -584,7 +744,12 @@ class TaskController extends Controller
             }
 
             $tasks = $intern->tasksWithStatus()
-                ->with(['specialty', 'attachments'])
+                ->with([
+                    'specialty',
+                    'attachments',
+                    'assigner:id,name,email', // Load the user who assigned the task
+                    'comments.user:id,name,avatar', // Load comments with commenter info
+                ])
                 ->orderBy('created_at', 'desc')
                 ->get();
 
@@ -653,6 +818,42 @@ class TaskController extends Controller
 
         } catch (\Exception $e) {
             \Log::error('Failed to send task progress notifications: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Notify task creator and supervisors about status update
+     */
+    private function notifyStakeholdersOfStatusChange($task, $newStatus)
+    {
+        try {
+            $statusLabels = [
+                'pending' => 'Pending ⏳',
+                'in_progress' => 'In Progress 🔄',
+                'done' => 'Completed ✅',
+            ];
+
+            $statusText = $statusLabels[$newStatus] ?? ucfirst($newStatus);
+            $title = '📋 Task Status Changed';
+            $body = "Status of '{$task->title}' has been changed to {$statusText}";
+
+            $recipients = User::where('id', $task->assigned_by)
+                ->orWhereHas('roles', function ($query) {
+                    $query->where('name', 'supervisor');
+                })
+                ->whereNotNull('device_token')
+                ->get();
+
+            foreach ($recipients as $recipient) {
+                app(NotificationController::class)->sendNotification(new Request([
+                    'user_id' => $recipient->id,
+                    'title' => $title,
+                    'body' => $body,
+                ]));
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to notify stakeholders of task status change: '.$e->getMessage());
         }
     }
 }

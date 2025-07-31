@@ -25,6 +25,9 @@ Route::prefix('admin')->group(function () {
         });
 
         Route::patch('/users/{id}/toggle-status', [AdminController::class, 'toggleUserStatus']);
+        // User management routes
+        Route::post('/users', [AuthController::class, 'createUser']);
+        Route::get('/specialties', [AuthController::class, 'getSpecialties']);
 
         Route::prefix('specialties')->group(function () {
             Route::post('create', [SpecialtyController::class, 'store'])->name('specialties.store');

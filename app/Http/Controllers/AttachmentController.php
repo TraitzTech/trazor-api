@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\AuthHelper;
 use App\Models\Attachment;
 use App\Models\Task;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -40,6 +42,38 @@ class AttachmentController extends Controller
     }
 
     /**
+     * Notify all task stakeholders about a new attachment
+     */
+    protected function notifyStakeholders(Task $task, Attachment $attachment, User $uploader)
+    {
+        try {
+            // Get all users to notify (assigned interns + task creator)
+            $stakeholders = User::whereHas('intern', function ($query) use ($task) {
+                $query->whereIn('id', $task->interns()->pluck('intern_id'));
+            })
+                ->orWhere('id', $task->assigned_by)
+                ->where('id', '!=', $uploader->id) // Don't notify the uploader
+                ->get();
+
+            foreach ($stakeholders as $user) {
+                // Use your existing notification system
+                app(NotificationController::class)->sendNotification(new Request([
+                    'user_id' => $user->id,
+                    'title' => 'New attachment added',
+                    'body' => $uploader->name.' added a new file to task: '.$task->title,
+                    'data' => [
+                        'type' => 'attachment_uploaded',
+                        'task_id' => $task->id,
+                        'attachment_id' => $attachment->id,
+                    ],
+                ]));
+            }
+        } catch (\Exception $e) {
+            \Log::error('Failed to send attachment notifications: '.$e->getMessage());
+        }
+    }
+
+    /**
      * Show the form for creating a new resource.
      */
     public function create(Request $request) {}
@@ -58,6 +92,8 @@ class AttachmentController extends Controller
                 'file' => 'required|file|max:4096|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,jpg,jpeg,png,gif,zip,rar,txt',
                 'description' => 'nullable|string|max:255',
             ]);
+
+            $user = AuthHelper::getUserFromBearerToken($request);
 
             // If taskId is in URL, use it and validate task exists
             if ($taskId) {
@@ -80,10 +116,13 @@ class AttachmentController extends Controller
                 'file_size' => $file->getSize(),
                 'mime_type' => $file->getMimeType(),
                 'description' => $validated['description'] ?? null,
-                'uploaded_by' => auth()->id(),
+                'uploaded_by' => $user->id,
             ]);
 
             $attachment->load(['task', 'uploader']);
+
+            // Notify stakeholders
+            $this->notifyStakeholders($task, $attachment, $user);
 
             return response()->json([
                 'success' => true,
@@ -184,8 +223,9 @@ class AttachmentController extends Controller
         try {
             $attachment = Attachment::findOrFail($id);
 
+            $user = AuthHelper::getUserFromBearerToken($request);
             // Check if user can edit this attachment (uploader or admin)
-            if ($attachment->uploaded_by !== auth()->id() && ! auth()->user()->hasRole('admin')) {
+            if ($attachment->uploaded_by !== $user->id && ! $user->hasRole('admin')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized to edit this attachment',
@@ -231,13 +271,14 @@ class AttachmentController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         try {
             $attachment = Attachment::findOrFail($id);
 
+            $user = AuthHelper::getUserFromBearerToken($request);
             // Check if user can delete this attachment (uploader or admin)
-            if ($attachment->uploaded_by !== auth()->id() && ! auth()->user()->hasRole('admin')) {
+            if ($attachment->uploaded_by !== $user->id && ! $user->hasRole('admin')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized to delete this attachment',

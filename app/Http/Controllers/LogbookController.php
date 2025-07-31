@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Helpers\ActivityLogger;
 use App\Helpers\AuthHelper;
 use App\Models\Logbook;
+use App\Models\LogbookReview;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -352,22 +354,53 @@ class LogbookController extends Controller
     public function destroy($id)
     {
         if (! $id) {
-            return response()->json(['message' => 'Logbook ID is required'], 422);
+            return response()->json([
+                'success' => false,
+                'message' => 'Logbook ID is required',
+            ], 422);
         }
 
         try {
             $logbook = Logbook::findOrFail($id);
+
+            DB::beginTransaction();
+
+            // Delete all related logbook reviews
+            LogbookReview::where('logbook_id', $logbook->id)->delete();
+
+            // Log the activity before deletion
+            if ($logbook->intern && $logbook->intern->user) {
+                ActivityLogger::log($logbook->intern->user->id, 'Logbook deleted');
+            }
+
+            // Finally, delete the logbook itself
             $logbook->delete();
 
-            ActivityLogger::log($logbook->intern->user->id, 'Logbook deleted');
+            DB::commit();
 
-            return response()->json(['message' => 'Logbook deleted successfully']);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json(['message' => 'Logbook not found'], 404);
-        } catch (\Exception $e) {
             return response()->json([
+                'success' => true,
+                'message' => 'Logbook and all related data deleted successfully',
+            ]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Logbook not found',
+            ], 404);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error deleting logbook: '.$e->getMessage(), [
+                'logbook_id' => $id,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
                 'message' => 'An error occurred while deleting the logbook',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : 'Failed to delete logbook',
             ], 500);
         }
     }

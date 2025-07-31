@@ -43,13 +43,21 @@ class SpecialtyController extends Controller
 
     public function index()
     {
-        $specialties = Specialty::with(['interns.user', 'supervisors.user'])->get();
+        try {
+            $specialties = Specialty::with(['interns.user', 'supervisors.user'])->get();
 
-        return response()->json([
-            'message' => 'Specialties retrieved successfully.',
-            'specialties' => $specialties,
-            'totalInterns' => Intern::count(),
-        ], 200);
+            return response()->json([
+                'message' => 'Specialties retrieved successfully.',
+                'data' => $specialties,
+            ], 200);
+        } catch (\Throwable $th) {
+            \Log::error('Error retrieving specialties: '.$th->getMessage());
+
+            return response()->json([
+                'message' => 'An error occurred while retrieving specialties.',
+                'error' => $th->getMessage(),
+            ], 500);
+        }
     }
 
     public function show($id)

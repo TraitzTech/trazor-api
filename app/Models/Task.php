@@ -15,6 +15,11 @@ class Task extends Model
         return $this->belongsToMany(Intern::class, 'task_intern')->withTimestamps();
     }
 
+    public function assigner()
+    {
+        return $this->belongsTo(User::class, 'assigned_by');
+    }
+
     // NEW relationship - with individual tracking data
     public function internsWithStatus()
     {
