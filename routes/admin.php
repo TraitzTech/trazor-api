@@ -1,6 +1,5 @@
 <?php
 
-// routes/api.php - Add these routes to your existing admin group
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\SpecialtyController;
@@ -9,6 +8,9 @@ Route::prefix('admin')->group(function () {
     Route::post('login', [AuthController::class, 'login'])->name('admin.login');
 
     Route::middleware(['auth:sanctum'])->group(function () {
+
+        Route::get('/dashboard', [AdminController::class, 'getDashboardData'])->name('admin.dashboard');
+
         // Existing routes
         Route::get('/interns', [AdminController::class, 'getAllInterns']);
 
