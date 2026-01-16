@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\AuthHelper;
+use App\Models\Announcement;
 use App\Models\Intern;
 use App\Models\Supervisor;
 use Illuminate\Http\Request;
@@ -41,5 +42,47 @@ class SupervisorController extends Controller
         }
 
         return response()->json(['interns' => $interns], 200);
+    }
+
+    /**
+     * Get announcements relevant to the authenticated supervisor.
+     *
+     * Returns announcements targeted to:
+     * - All users
+     * - Supervisors specifically
+     * - The supervisor's specialty
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAnnouncements(Request $request)
+    {
+        $user = AuthHelper::getUserFromBearerToken($request);
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        if (! $user->hasRole('supervisor')) {
+            return response()->json(['message' => 'User is not a supervisor'], 403);
+        }
+
+        $specialtyId = $user->supervisor?->specialty_id;
+
+        $announcements = Announcement::with(['author', 'specialty'])
+            ->where(function ($query) use ($specialtyId) {
+                $query->where('target', 'all')
+                    ->orWhere('target', 'supervisor')
+                    ->orWhere(function ($q) use ($specialtyId) {
+                        $q->where('target', 'specialty')
+                            ->where('specialty_id', $specialtyId);
+                    });
+            })
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'announcements' => $announcements,
+            'count' => $announcements->count(),
+        ]);
     }
 }
