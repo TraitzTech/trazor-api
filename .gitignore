@@ -28,4 +28,6 @@ yarn-error.log
 # Firebase credentials - NEVER commit these
 google-services.json
 firebase-credentials.json
+firebase-adminsdk.json
 *-firebase-adminsdk-*.json
+*firebase*.json
