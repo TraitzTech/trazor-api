@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['http://localhost:3000', 'https://trazor.traitz.tech'],
+    'allowed_origins' => ['http://localhost:3000', 'https://trazor.traitz.tech', 'https://trazor-admin-panel.vercel.app'],
 
     'allowed_origins_patterns' => [],
 
