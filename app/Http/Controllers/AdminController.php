@@ -669,6 +669,8 @@ class AdminController extends Controller
                 'institution' => 'required|string|max:255',
                 'specialty' => 'required|exists:specialties,id',
                 'hort_number' => 'nullable|string|max:10',
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after:start_date',
             ];
         } elseif ($role === 'supervisor') {
             $roleSpecificRules = [
@@ -700,12 +702,16 @@ class AdminController extends Controller
                         'specialty_id' => $internData['specialty'],
                         'institution' => $internData['institution'],
                         'hort_number' => $internData['hort_number'],
+                        'start_date' => $internData['start_date'],
+                        'end_date' => $internData['end_date'],
                     ]);
                 } else {
                     $user->intern()->create([
                         'specialty_id' => $internData['specialty'],
                         'institution' => $internData['institution'],
                         'hort_number' => $internData['hort_number'],
+                        'start_date' => $internData['start_date'],
+                        'end_date' => $internData['end_date'],
                     ]);
                     $user->supervisor()->delete();
                     $user->admin()->delete();
