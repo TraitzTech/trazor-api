@@ -20,7 +20,7 @@ class NotificationController extends Controller
     public function __construct()
     {
         try {
-            $serviceAccountPath = storage_path('app/firebase/serviceAccountKey.json');
+            $serviceAccountPath = base_path(env('GOOGLE_APPLICATION_CREDENTIALS', 'firebase-adminsdk.json'));
             $firebase = (new Factory)->withServiceAccount($serviceAccountPath);
             $this->messaging = $firebase->createMessaging();
         } catch (\Exception $e) {
