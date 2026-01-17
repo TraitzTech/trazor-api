@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Helpers\ActivityLogger;
 use App\Helpers\AuthHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\CreateUserRequest;
 use App\Models\Admin;
 use App\Models\Intern;
 use App\Models\Specialty;
@@ -100,38 +101,27 @@ class AuthController extends Controller
         });
     }
 
-    public function createUser(Request $request)
+    /**
+     * Create a new user (Admin only).
+     *
+     * Creates a new user with the specified role. Password is auto-generated and sent via email.
+     *
+     * For **Intern** role, you must provide:
+     * - specialty_id, institution, hort_number, start_date, end_date
+     *
+     * For **Supervisor** role, you must provide:
+     * - specialty_id
+     *
+     * For **Admin** role, you must provide:
+     * - permissions (array of: user_management, content_moderation, analytics, system_settings)
+     *
+     * @param  \App\Http\Requests\Admin\CreateUserRequest  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function createUser(CreateUserRequest $request)
     {
         try {
-            // Validate basic user data (removed password validation)
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'email' => 'required|email|unique:users,email',
-                'role' => 'required|in:intern,supervisor,admin',
-                'phone' => 'nullable|string|max:20',
-                'location' => 'nullable|string|max:255',
-                'bio' => 'nullable|string|max:500',
-
-                // Intern specific fields
-                'specialty_id' => 'required_if:role,intern,supervisor|exists:specialties,id',
-                'institution' => 'required_if:role,intern|string|max:255',
-                'hort_number' => 'required_if:role,intern|string|max:10',
-                'start_date' => 'required_if:role,intern|date|after_or_equal:today',
-                'end_date' => 'required_if:role,intern|date|after:start_date',
-
-                // Admin specific fields
-                'permissions' => 'required_if:role,admin|array',
-                'permissions.*' => 'string|in:user_management,content_moderation,analytics,system_settings',
-            ]);
-
-            // Check authorization
-            $authUser = AuthHelper::getUserFromBearerToken($request);
-            if (! $authUser->hasRole('admin')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized to create users',
-                ], 403);
-            }
+            $validated = $request->validated();
 
             // Additional validation for intern
             if ($validated['role'] === 'intern') {
