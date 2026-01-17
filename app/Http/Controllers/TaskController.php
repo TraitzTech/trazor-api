@@ -159,28 +159,6 @@ class TaskController extends Controller
                 },
             ])->findOrFail($id);
 
-            // Transform the data to include pivot information more clearly
-            $task->interns->transform(function ($intern) {
-                return [
-                    'id' => $intern->id,
-                    'user_id' => $intern->user_id,
-                    'institution' => $intern->institution,
-                    'matric_number' => $intern->matric_number,
-                    'hort_number' => $intern->hort_number,
-                    'user' => $intern->user,
-                    'specialty' => $intern->specialty,
-                    // Pivot data (individual task submission info)
-                    'submission' => [
-                        'status' => $intern->pivot->status ?? 'pending',
-                        'started_at' => $intern->pivot->started_at,
-                        'completed_at' => $intern->pivot->completed_at,
-                        'intern_notes' => $intern->pivot->intern_notes,
-                        'assigned_at' => $intern->pivot->created_at,
-                        'updated_at' => $intern->pivot->updated_at,
-                    ],
-                ];
-            });
-
             return response()->json([
                 'success' => true,
                 'data' => new TaskResource($task),

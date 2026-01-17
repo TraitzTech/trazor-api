@@ -14,13 +14,14 @@ class SupervisorDashboardStatsResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $data = is_array($this->resource) ? $this->resource : (array) $this->resource;
         return [
-            'interns_count' => $this['interns_count'] ?? 0,
-            'tasks_count' => $this['tasks_count'] ?? 0,
-            'pending_tasks' => $this['pending_tasks'] ?? 0,
-            'in_progress_tasks' => $this['in_progress_tasks'] ?? 0,
-            'completed_tasks' => $this['completed_tasks'] ?? 0,
-            'submissions_count' => $this['submissions_count'] ?? 0,
+            'interns_count' => $data['interns_count'] ?? 0,
+            'tasks_count' => $data['tasks_count'] ?? 0,
+            'pending_tasks' => $data['pending_tasks'] ?? 0,
+            'in_progress_tasks' => $data['in_progress_tasks'] ?? 0,
+            'completed_tasks' => $data['completed_tasks'] ?? 0,
+            'submissions_count' => $data['submissions_count'] ?? 0,
         ];
     }
 }

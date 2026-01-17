@@ -22,7 +22,9 @@ class AttachmentResource extends JsonResource
                     'title' => $this->task->title,
                 ];
             }),
-            'uploaded_by' => $this->whenLoaded('uploader', fn() => new UserResource($this->uploader)),
+            'uploaded_by' => $this->whenLoaded('uploader', function () {
+                return new UserResource($this->uploader);
+            }),
             'original_name' => $this->original_name,
             'file_size' => $this->file_size,
             'mime_type' => $this->mime_type,
