@@ -19,19 +19,6 @@ class AnnouncementController extends Controller
      * Retrieve all announcements in the system, ordered by most recent first.
      * Each announcement includes its author information.
      *
-     * @response 200 {
-     *   "announcements": [
-     *     {
-     *       "id": 1,
-     *       "title": "Welcome to Trazor",
-     *       "content": "Welcome message content...",
-     *       "target": "all",
-     *       "priority": "normal",
-     *       "created_by": 1,
-     *       "author": {"id": 1, "name": "Admin User"}
-     *     }
-     *   ]
-     * }
      */
     public function index()
     {
@@ -47,17 +34,6 @@ class AnnouncementController extends Controller
      *
      * @urlParam id integer required The announcement ID. Example: 1
      *
-     * @response 200 {
-     *   "announcement": {
-     *     "id": 1,
-     *     "title": "Welcome to Trazor",
-     *     "content": "Welcome message content...",
-     *     "target": "all",
-     *     "priority": "normal",
-     *     "author": {"id": 1, "name": "Admin User"}
-     *   }
-     * }
-     * @response 404 {"message": "No query results for model [App\\Models\\Announcement]"}
      */
     public function show($id)
     {
@@ -86,14 +62,6 @@ class AnnouncementController extends Controller
      * @bodyParam specialty_id integer Required when target is "specialty". Example: 1
      * @bodyParam priority string Priority level. Example: normal
      *
-     * @response 200 {
-     *   "message": "Announcement created successfully",
-     *   "data": {"id": 5, "title": "Important Update", "target": "all"},
-     *   "recipients_count": 25,
-     *   "notification_results": {"sent": 20, "failed": 2, "duplicates": 0, "no_token": 3}
-     * }
-     * @response 401 {"message": "Unauthorized"}
-     * @response 422 {"message": "Validation failed"}
      */
     public function store(Request $request)
     {
@@ -178,13 +146,6 @@ class AnnouncementController extends Controller
      * @bodyParam specialty_id integer Required when target is "specialty". Example: 1
      * @bodyParam priority string Priority level. Example: high
      *
-     * @response 200 {
-     *   "message": "Announcement updated successfully",
-     *   "data": {"id": 1, "title": "Updated Title", "content": "Updated content..."}
-     * }
-     * @response 401 {"message": "Unauthorized"}
-     * @response 403 {"message": "Forbidden - You can only edit your own announcements"}
-     * @response 404 {"message": "No query results for model [App\\Models\\Announcement]"}
      */
     public function update(Request $request, $id)
     {
@@ -225,10 +186,6 @@ class AnnouncementController extends Controller
      *
      * @urlParam id integer required The announcement ID. Example: 1
      *
-     * @response 200 {"message": "Announcement deleted successfully"}
-     * @response 401 {"message": "Unauthorized"}
-     * @response 403 {"message": "Forbidden - You can only delete your own announcements"}
-     * @response 404 {"message": "No query results for model [App\\Models\\Announcement]"}
      */
     public function destroy(Request $request, $id)
     {
@@ -259,11 +216,6 @@ class AnnouncementController extends Controller
      * Retrieve all announcements created by the authenticated user.
      * Useful for managing one's own announcements.
      *
-     * @response 200 {
-     *   "announcements": [
-     *     {"id": 1, "title": "My Announcement", "target": "all", "author": {"id": 1, "name": "John"}}
-     *   ]
-     * }
      */
     public function getByCreator(Request $request)
     {
@@ -287,12 +239,6 @@ class AnnouncementController extends Controller
      * - Interns specifically
      * - The intern's assigned specialty
      *
-     * @response 200 {
-     *   "announcements": [
-     *     {"id": 1, "title": "Welcome Interns", "target": "intern", "author": {"id": 1, "name": "Admin"}}
-     *   ]
-     * }
-     * @response 403 {"message": "User is not an intern"}
      */
     public function getForIntern(Request $request)
     {

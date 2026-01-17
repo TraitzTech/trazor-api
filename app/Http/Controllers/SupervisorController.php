@@ -8,6 +8,12 @@ use App\Models\Attachment;
 use App\Models\Intern;
 use App\Models\Supervisor;
 use App\Models\Task;
+use App\Http\Resources\AnnouncementResource;
+use App\Http\Resources\AttachmentResource;
+use App\Http\Resources\InternResource;
+use App\Http\Resources\SpecialtyResource;
+use App\Http\Resources\SupervisorDashboardStatsResource;
+use App\Http\Resources\TaskWithProgressResource;
 use Illuminate\Http\Request;
 
 /**
@@ -19,21 +25,6 @@ class SupervisorController extends Controller
      * Get Interns by Specialty
      *
      * Retrieve all interns that share the same specialty as the authenticated supervisor.
-     *
-     * @response 200 {
-     *   "interns": [
-     *     {
-     *       "id": 1,
-     *       "user_id": 5,
-     *       "specialty_id": 2,
-     *       "user": {"id": 5, "name": "John Doe", "email": "john@example.com"},
-     *       "specialty": {"id": 2, "name": "Software Development"}
-     *     }
-     *   ]
-     * }
-     * @response 401 {"message": "Unauthorized"}
-     * @response 404 {"message": "Supervisor does not have a specialty assigned."}
-     * @response 404 {"message": "No interns found with the same specialty as this supervisor."}
      */
     public function getInternsBySupervisorSpecialty(Request $request)
     {
@@ -61,7 +52,9 @@ class SupervisorController extends Controller
             return response()->json(['message' => 'No interns found with the same specialty as this supervisor.'], 404);
         }
 
-        return response()->json(['interns' => $interns], 200);
+        return response()->json([
+            'interns' => InternResource::collection($interns),
+        ], 200);
     }
 
     /**
@@ -70,22 +63,6 @@ class SupervisorController extends Controller
      * Retrieve announcements relevant to the authenticated supervisor.
      * Returns announcements targeted to all users, supervisors specifically,
      * or the supervisor's specialty.
-     *
-     * @response 200 {
-     *   "announcements": [
-     *     {
-     *       "id": 1,
-     *       "title": "Weekly Meeting",
-     *       "content": "Meeting at 10am",
-     *       "target": "supervisor",
-     *       "author": {"id": 1, "name": "Admin"},
-     *       "specialty": null
-     *     }
-     *   ],
-     *   "count": 1
-     * }
-     * @response 401 {"message": "Unauthorized"}
-     * @response 403 {"message": "User is not a supervisor"}
      */
     public function getAnnouncements(Request $request)
     {
@@ -114,7 +91,7 @@ class SupervisorController extends Controller
             ->get();
 
         return response()->json([
-            'announcements' => $announcements,
+            'announcements' => AnnouncementResource::collection($announcements),
             'count' => $announcements->count(),
         ]);
     }
@@ -123,27 +100,6 @@ class SupervisorController extends Controller
      * Get Specialty Tasks
      *
      * Retrieve all tasks for the supervisor's specialty with assigned interns and progress summaries.
-     *
-     * @response 200 {
-     *   "tasks": [
-     *     {
-     *       "id": 1,
-     *       "title": "Build REST API",
-     *       "description": "Create a RESTful API",
-     *       "due_date": "2025-02-15",
-     *       "status": "pending",
-     *       "specialty": {"id": 2, "name": "Software Development"},
-     *       "assigner": {"id": 1, "name": "Admin"},
-     *       "progress": {"total": 5, "completed": 2, "in_progress": 1, "pending": 2},
-     *       "interns": []
-     *     }
-     *   ],
-     *   "count": 1,
-     *   "specialty": {"id": 2, "name": "Software Development"}
-     * }
-     * @response 401 {"message": "Unauthorized"}
-     * @response 403 {"message": "User is not a supervisor"}
-     * @response 404 {"message": "Supervisor does not have a specialty assigned"}
      */
     public function getTasks(Request $request)
     {
@@ -166,36 +122,12 @@ class SupervisorController extends Controller
         $tasks = Task::with(['specialty', 'assigner', 'internsWithStatus.user'])
             ->where('specialty_id', $supervisor->specialty_id)
             ->latest()
-            ->get()
-            ->map(function ($task) {
-                return [
-                    'id' => $task->id,
-                    'title' => $task->title,
-                    'description' => $task->description,
-                    'due_date' => $task->due_date,
-                    'status' => $task->status,
-                    'specialty' => $task->specialty,
-                    'assigner' => $task->assigner,
-                    'created_at' => $task->created_at,
-                    'updated_at' => $task->updated_at,
-                    'progress' => $task->getProgressSummary(),
-                    'interns' => $task->internsWithStatus->map(function ($intern) {
-                        return [
-                            'id' => $intern->id,
-                            'user' => $intern->user,
-                            'status' => $intern->pivot->status,
-                            'started_at' => $intern->pivot->started_at,
-                            'completed_at' => $intern->pivot->completed_at,
-                            'intern_notes' => $intern->pivot->intern_notes,
-                        ];
-                    }),
-                ];
-            });
+            ->get();
 
         return response()->json([
-            'tasks' => $tasks,
+            'tasks' => TaskWithProgressResource::collection($tasks),
             'count' => $tasks->count(),
-            'specialty' => $supervisor->specialty,
+            'specialty' => new SpecialtyResource($supervisor->specialty),
         ]);
     }
 
@@ -204,23 +136,7 @@ class SupervisorController extends Controller
      *
      * Retrieve full details of a specific task including assigned interns and their progress.
      *
-     * @urlParam taskId integer required The ID of the task. Example: 1
-     * @response 200 {
-     *   "task": {
-     *     "id": 1,
-     *     "title": "Build REST API",
-     *     "description": "Create a RESTful API",
-     *     "due_date": "2025-02-15",
-     *     "status": "pending",
-     *     "specialty": {},
-     *     "assigner": {},
-     *     "progress": {"total": 5, "completed": 2},
-     *     "interns": []
-     *   }
-     * }
-     * @response 401 {"message": "Unauthorized"}
-     * @response 403 {"message": "User is not a supervisor"}
-     * @response 404 {"message": "Task not found or not in your specialty"}
+    * @urlParam taskId integer required The ID of the task. Example: 1
      */
     public function getTask(Request $request, $taskId)
     {
@@ -250,30 +166,7 @@ class SupervisorController extends Controller
         }
 
         return response()->json([
-            'task' => [
-                'id' => $task->id,
-                'title' => $task->title,
-                'description' => $task->description,
-                'due_date' => $task->due_date,
-                'status' => $task->status,
-                'specialty' => $task->specialty,
-                'assigner' => $task->assigner,
-                'created_at' => $task->created_at,
-                'updated_at' => $task->updated_at,
-                'progress' => $task->getProgressSummary(),
-                'interns' => $task->internsWithStatus->map(function ($intern) {
-                    return [
-                        'id' => $intern->id,
-                        'user' => $intern->user,
-                        'status' => $intern->pivot->status,
-                        'started_at' => $intern->pivot->started_at,
-                        'completed_at' => $intern->pivot->completed_at,
-                        'intern_notes' => $intern->pivot->intern_notes,
-                    ];
-                }),
-                'attachments' => $task->attachments,
-                'comments' => $task->comments,
-            ],
+            'task' => new TaskWithProgressResource($task),
         ]);
     }
 
@@ -281,22 +174,6 @@ class SupervisorController extends Controller
      * Get All Task Submissions
      *
      * Retrieve all file submissions (attachments) from interns for tasks in the supervisor's specialty.
-     *
-     * @response 200 {
-     *   "submissions": [
-     *     {
-     *       "id": 1,
-     *       "file_path": "attachments/report.pdf",
-     *       "file_name": "report.pdf",
-     *       "task": {"id": 1, "title": "Build API"},
-     *       "uploader": {"id": 5, "name": "John Doe"}
-     *     }
-     *   ],
-     *   "count": 1
-     * }
-     * @response 401 {"message": "Unauthorized"}
-     * @response 403 {"message": "User is not a supervisor"}
-     * @response 404 {"message": "Supervisor does not have a specialty assigned"}
      */
     public function getTaskSubmissions(Request $request)
     {
@@ -323,26 +200,10 @@ class SupervisorController extends Controller
         $submissions = Attachment::with(['task', 'uploader'])
             ->whereIn('task_id', $taskIds)
             ->latest()
-            ->get()
-            ->map(function ($attachment) {
-                return [
-                    'id' => $attachment->id,
-                    'task' => [
-                        'id' => $attachment->task->id,
-                        'title' => $attachment->task->title,
-                    ],
-                    'uploaded_by' => $attachment->uploader,
-                    'original_name' => $attachment->original_name,
-                    'file_size' => $attachment->file_size,
-                    'mime_type' => $attachment->mime_type,
-                    'description' => $attachment->description,
-                    'path' => $attachment->path,
-                    'created_at' => $attachment->created_at,
-                ];
-            });
+            ->get();
 
         return response()->json([
-            'submissions' => $submissions,
+            'submissions' => AttachmentResource::collection($submissions),
             'count' => $submissions->count(),
         ]);
     }
@@ -352,23 +213,7 @@ class SupervisorController extends Controller
      *
      * Retrieve all file submissions for a specific task in the supervisor's specialty.
      *
-     * @urlParam taskId integer required The ID of the task. Example: 1
-     * @response 200 {
-     *   "task": {"id": 1, "title": "Build API"},
-     *   "submissions": [
-     *     {
-     *       "id": 1,
-     *       "original_name": "report.pdf",
-     *       "file_size": 102400,
-     *       "mime_type": "application/pdf",
-     *       "uploader": {"id": 5, "name": "John Doe"}
-     *     }
-     *   ],
-     *   "count": 1
-     * }
-     * @response 401 {"message": "Unauthorized"}
-     * @response 403 {"message": "User is not a supervisor"}
-     * @response 404 {"message": "Task not found or not in your specialty"}
+    * @urlParam taskId integer required The ID of the task. Example: 1
      */
     public function getTaskSubmissionsForTask(Request $request, $taskId)
     {
@@ -407,38 +252,16 @@ class SupervisorController extends Controller
                 'id' => $task->id,
                 'title' => $task->title,
             ],
-            'submissions' => $submissions,
+            'submissions' => AttachmentResource::collection($submissions),
             'count' => $submissions->count(),
         ]);
     }
 
     /**
      * Get Supervisor Dashboard
-     *
-     * Retrieve dashboard summary with statistics for the supervisor's specialty including
-     * intern count, task breakdown by status, submission count, and recent submissions.
-     *
-     * @response 200 {
-     *   "specialty": {"id": 2, "name": "Software Development"},
-     *   "stats": {
-     *     "interns_count": 10,
-     *     "tasks_count": 5,
-     *     "pending_tasks": 2,
-     *     "in_progress_tasks": 2,
-     *     "completed_tasks": 1,
-     *     "submissions_count": 15
-     *   },
-     *   "recent_submissions": [
-     *     {
-     *       "id": 1,
-     *       "task": {"id": 1, "title": "Build API"},
-     *       "uploader": {"id": 5, "name": "John"}
-     *     }
-     *   ]
-     * }
-     * @response 401 {"message": "Unauthorized"}
-     * @response 403 {"message": "User is not a supervisor"}
-     * @response 404 {"message": "Supervisor does not have a specialty assigned"}
+    *
+    * Retrieve dashboard summary with statistics for the supervisor's specialty including
+    * intern count, task breakdown by status, submission count, and recent submissions.
      */
     public function getDashboard(Request $request)
     {
@@ -483,17 +306,19 @@ class SupervisorController extends Controller
             ->limit(5)
             ->get();
 
+        $stats = [
+            'interns_count' => $internsCount,
+            'tasks_count' => $tasksCount,
+            'pending_tasks' => $pendingTasks,
+            'in_progress_tasks' => $inProgressTasks,
+            'completed_tasks' => $completedTasks,
+            'submissions_count' => $submissionsCount,
+        ];
+
         return response()->json([
-            'specialty' => $supervisor->specialty,
-            'stats' => [
-                'interns_count' => $internsCount,
-                'tasks_count' => $tasksCount,
-                'pending_tasks' => $pendingTasks,
-                'in_progress_tasks' => $inProgressTasks,
-                'completed_tasks' => $completedTasks,
-                'submissions_count' => $submissionsCount,
-            ],
-            'recent_submissions' => $recentSubmissions,
+            'specialty' => new SpecialtyResource($supervisor->specialty),
+            'stats' => new SupervisorDashboardStatsResource($stats),
+            'recent_submissions' => AttachmentResource::collection($recentSubmissions),
         ]);
     }
 }

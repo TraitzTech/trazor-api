@@ -23,22 +23,6 @@ class AttachmentController extends Controller
      *
      * @queryParam task_id integer Filter attachments by task ID. Example: 1
      *
-     * @response 200 {
-     *   "success": true,
-     *   "data": [
-     *     {
-     *       "id": 1,
-     *       "task_id": 1,
-     *       "original_name": "report.pdf",
-     *       "file_size": 102400,
-     *       "mime_type": "application/pdf",
-     *       "description": "Weekly progress report",
-     *       "task": {"id": 1, "title": "Complete Report"},
-     *       "uploader": {"id": 5, "name": "John Doe"}
-     *     }
-     *   ]
-     * }
-     * @response 500 {"success": false, "message": "Failed to retrieve attachments"}
      */
     public function index(Request $request)
     {
@@ -119,20 +103,6 @@ class AttachmentController extends Controller
      * @bodyParam file file required The file to upload (max 4MB).
      * @bodyParam description string Optional description. Example: Weekly progress report
      *
-     * @response 201 {
-     *   "success": true,
-     *   "message": "File uploaded successfully",
-     *   "data": {
-     *     "id": 1,
-     *     "original_name": "report.pdf",
-     *     "file_size": 102400,
-     *     "mime_type": "application/pdf",
-     *     "description": "Weekly progress report"
-     *   }
-     * }
-     * @response 404 {"success": false, "message": "Task not found"}
-     * @response 422 {"success": false, "message": "Validation failed", "errors": {}}
-     * @response 500 {"success": false, "message": "Failed to upload file"}
      */
     public function store(Request $request, $taskId = null)
     {
@@ -210,19 +180,6 @@ class AttachmentController extends Controller
      *
      * @urlParam id integer required The attachment ID. Example: 1
      *
-     * @response 200 {
-     *   "success": true,
-     *   "data": {
-     *     "id": 1,
-     *     "original_name": "report.pdf",
-     *     "file_size": 102400,
-     *     "mime_type": "application/pdf",
-     *     "task": {"id": 1, "title": "Complete Report"},
-     *     "uploader": {"id": 5, "name": "John Doe"}
-     *   }
-     * }
-     * @response 404 {"success": false, "message": "Attachment not found"}
-     * @response 500 {"success": false, "message": "Failed to retrieve attachment"}
      */
     public function show($id)
     {
@@ -255,10 +212,6 @@ class AttachmentController extends Controller
      *
      * @urlParam id integer required The attachment ID. Example: 1
      *
-     * @response 200 Binary file download
-     * @response 404 {"success": false, "message": "Attachment not found"}
-     * @response 404 {"success": false, "message": "File not found on server"}
-     * @response 500 {"success": false, "message": "Failed to download file"}
      */
     public function download($id)
     {
@@ -305,15 +258,6 @@ class AttachmentController extends Controller
      *
      * @bodyParam description string The new description for the attachment. Example: Updated description
      *
-     * @response 200 {
-     *   "success": true,
-     *   "message": "Attachment updated successfully",
-     *   "data": {"id": 1, "description": "Updated description"}
-     * }
-     * @response 403 {"success": false, "message": "Unauthorized to edit this attachment"}
-     * @response 404 {"success": false, "message": "Attachment not found"}
-     * @response 422 {"success": false, "message": "Validation failed"}
-     * @response 500 {"success": false, "message": "Failed to update attachment"}
      */
     public function update(Request $request, $id)
     {
@@ -373,10 +317,6 @@ class AttachmentController extends Controller
      *
      * @urlParam id integer required The attachment ID. Example: 1
      *
-     * @response 200 {"success": true, "message": "Attachment deleted successfully"}
-     * @response 403 {"success": false, "message": "Unauthorized to delete this attachment"}
-     * @response 404 {"success": false, "message": "Attachment not found"}
-     * @response 500 {"success": false, "message": "Failed to delete attachment"}
      */
     public function destroy(Request $request, $id)
     {

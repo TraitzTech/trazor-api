@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Helpers\ActivityLogger;
 use App\Helpers\AuthHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
 use App\Http\Requests\Admin\CreateUserRequest;
 use App\Models\Admin;
 use App\Models\Intern;
@@ -27,60 +28,32 @@ class AuthController extends Controller
      * Admin Login
      *
      * Authenticate an administrator with their email and password credentials.
-     * Only users with the 'admin' role can successfully login through this endpoint.
-     * Returns an access token upon successful authentication.
-     *
-     * @unauthenticated
-     *
-     * @bodyParam email string required The admin's email address. Example: admin@trazor.com
-     * @bodyParam password string required The admin's password (minimum 6 characters). Example: adminpass123
-     *
-     * @response 200 {
-     *   "message": "Login successful",
-     *   "user": {"id": 1, "name": "Admin User", "email": "admin@trazor.com"},
-     *   "token": "1|abc123xyz..."
-     * }
-     * @response 401 {"message": "Invalid credentials"}
-     * @response 403 {"message": "Unauthorized: Not an admin"}
-     * @response 422 {"message": "Validation failed", "errors": {"email": ["The email field is required."]}}
      */
     public function login(Request $request)
     {
-        try {
-            $credentials = $request->validate([
-                'email' => 'required|email',
-                'password' => 'required|string|min:6',
-            ]);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
-        }
+        // Scramble automatically documents validation rules from $request->validate
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string|min:6',
+        ]);
 
         if (! Auth::attempt($credentials)) {
-            return response()->json([
-                'message' => 'Invalid credentials',
-            ], 401);
+            return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
         $user = Auth::user();
 
         if (! $user->hasRole('admin')) {
             Auth::logout();
-
-            return response()->json([
-                'message' => 'Unauthorized: Not an admin',
-            ], 403);
+            return response()->json(['message' => 'Unauthorized: Not an admin'], 403);
         }
 
         $token = $user->createToken('admin-login')->plainTextToken;
 
-        ActivityLogger::log($user->id, 'User logged in');
-
+        // Scramble will now expand UserResource in the 200 OK response
         return response()->json([
             'message' => 'Login successful',
-            'user' => $user,
+            'user' => new UserResource($user),
             'token' => $token,
         ]);
     }
@@ -150,16 +123,6 @@ class AuthController extends Controller
      * @bodyParam end_date date Required for intern. Example: 2026-06-20
      * @bodyParam permissions array Required for admin. Example: ["user_management", "analytics"]
      *
-     * @response 201 {
-     *   "success": true,
-     *   "message": "Intern created successfully. Login credentials have been sent to their email.",
-     *   "data": {
-     *     "user": {"id": 5, "name": "Jane Smith", "email": "jane@example.com"},
-     *     "matric_number": "INT-2026-0005"
-     *   }
-     * }
-     * @response 422 {"success": false, "message": "Validation failed", "errors": {}}
-     * @response 500 {"success": false, "message": "An error occurred while creating the user"}
      */
     public function createUser(CreateUserRequest $request)
     {
@@ -280,7 +243,7 @@ class AuthController extends Controller
                 'success' => true,
                 'message' => ucfirst($validated['role']).' created successfully. Login credentials have been sent to their email.',
                 'data' => [
-                    'user' => $user,
+                    'user' => new UserResource($user),
                     'matric_number' => $validated['role'] === 'intern' ? $user->intern->matric_number : null,
                 ],
             ], 201);
@@ -314,14 +277,6 @@ class AuthController extends Controller
      * Retrieve a list of all specialties available in the system.
      * Useful for populating dropdowns when creating users.
      *
-     * @response 200 {
-     *   "success": true,
-     *   "data": [
-     *     {"id": 1, "name": "Software Development", "description": "Web and mobile development"},
-     *     {"id": 2, "name": "Data Science", "description": "Data analysis and machine learning"}
-     *   ]
-     * }
-     * @response 500 {"success": false, "message": "Failed to fetch specialties"}
      */
     public function getSpecialties()
     {

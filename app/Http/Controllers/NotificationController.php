@@ -39,9 +39,6 @@ class NotificationController extends Controller
      *
      * @bodyParam device_token string required The FCM device token from the mobile app. Example: fMRPnQlPQq-abc123...
      *
-     * @response 200 {"message": "Device token updated successfully."}
-     * @response 401 {"message": "Unauthorized"}
-     * @response 422 {"message": "Validation failed"}
      */
     public function updateDeviceToken(Request $request)
     {
@@ -76,10 +73,6 @@ class NotificationController extends Controller
      * @bodyParam notification_type string Type of notification for categorization. Example: task_assigned
      * @bodyParam reference_id string Reference ID for deep linking. Example: 123
      *
-     * @response 200 {"message": "Notification sent successfully."}
-     * @response 400 {"error": "User has no device token."}
-     * @response 422 {"message": "Invalid input", "errors": {}}
-     * @response 500 {"error": "Failed to send notification"}
      */
     public function sendNotification(Request $request)
     {
@@ -158,13 +151,6 @@ class NotificationController extends Controller
      * @bodyParam notification_type string Type for categorization. Example: announcement
      * @bodyParam reference_id string Reference ID for deep linking. Example: 456
      *
-     * @response 200 {
-     *   "sent": 10,
-     *   "failed": 2,
-     *   "duplicates": 1,
-     *   "no_token": 3
-     * }
-     * @response 422 {"message": "Invalid input", "errors": {}}
      */
     public function sendBulkNotifications(Request $request)
     {

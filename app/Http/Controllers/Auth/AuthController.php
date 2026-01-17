@@ -29,15 +29,6 @@ class AuthController extends Controller
      * @bodyParam email string required The user's email address. Example: user@example.com
      * @bodyParam password string required The user's password (minimum 6 characters). Example: password123
      *
-     * @response 200 {
-     *   "token": "1|abc123xyz...",
-     *   "user": {"id": 1, "name": "John Doe", "email": "user@example.com"},
-     *   "role": "intern",
-     *   "recent_activities": [{"action": "User logged in", "time": "January 17, 2026 10:30 AM"}]
-     * }
-     * @response 401 {"message": "Incorrect email or password."}
-     * @response 403 {"message": "Your account is not active. Please contact the system admin."}
-     * @response 422 {"message": "Invalid input", "errors": {"email": ["The email field is required."]}}
      */
     public function login(Request $request)
     {
@@ -112,12 +103,6 @@ class AuthController extends Controller
      * @bodyParam password string required Password (minimum 6 characters). Example: password123
      * @bodyParam password_confirmation string required Must match the password field. Example: password123
      *
-     * @response 200 {
-     *   "token": "1|abc123xyz...",
-     *   "user": {"id": 1, "name": "John Doe", "email": "newuser@example.com"},
-     *   "role": "intern"
-     * }
-     * @response 422 {"message": "Validation error", "errors": {"email": ["The email has already been taken."]}}
      */
     public function register(Request $request)
     {
@@ -158,11 +143,6 @@ class AuthController extends Controller
      * Retrieve the currently authenticated user's details and their assigned role.
      * Requires a valid Bearer token in the Authorization header.
      *
-     * @response 200 {
-     *   "user": {"id": 1, "name": "John Doe", "email": "user@example.com", "is_active": true},
-     *   "role": "intern"
-     * }
-     * @response 401 {"message": "Unauthenticated."}
      */
     public function getAuthUser(Request $request)
     {
@@ -180,8 +160,6 @@ class AuthController extends Controller
      * Revoke the current access token, effectively logging out the user.
      * The token will no longer be valid for any subsequent API requests.
      *
-     * @response 200 {"message": "Logged out successfully"}
-     * @response 401 {"message": "Unauthenticated."}
      */
     public function logout(Request $request)
     {

@@ -39,18 +39,6 @@ class LogbookReviewController extends Controller
      * @bodyParam status string required Review status. Example: approved
      * @bodyParam feedback string Optional feedback for the intern. Example: Great work! Keep it up.
      *
-     * @response 200 {
-     *   "message": "Reviewed successfully",
-     *   "review": {
-     *     "id": 1,
-     *     "logbook_id": 1,
-     *     "status": "approved",
-     *     "feedback": "Great work! Keep it up.",
-     *     "reviewed_by": 3
-     *   }
-     * }
-     * @response 422 {"message": "Validation failed"}
-     * @response 404 {"message": "No query results for model [App\\Models\\Logbook]"}
      */
     public function store(Request $request, $id)
     {

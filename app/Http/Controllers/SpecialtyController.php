@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\AuthHelper;
+use App\Http\Resources\SpecialtyResource;
 use App\Models\Intern;
 use App\Models\Specialty;
 use Illuminate\Http\Request;
@@ -27,16 +28,6 @@ class SpecialtyController extends Controller
      * @bodyParam skills array Optional array of relevant skills. Example: ["JavaScript", "PHP", "Laravel"]
      * @bodyParam partner_companies array Optional array of partner companies. Example: ["Company A", "Company B"]
      *
-     * @response 201 {
-     *   "message": "Specialty created successfully.",
-     *   "data": {
-     *     "id": 1,
-     *     "name": "Software Development",
-     *     "category": "Technology",
-     *     "status": "active"
-     *   }
-     * }
-     * @response 422 {"message": "Invalid input", "errors": {"name": ["The name has already been taken."]}}
      */
     public function store(Request $request)
     {
@@ -73,21 +64,7 @@ class SpecialtyController extends Controller
      * List All Specialties
      *
      * Retrieve all specialties with their associated interns and supervisors.
-     *
-     * @response 200 {
-     *   "message": "Specialties retrieved successfully.",
-     *   "data": [
-     *     {
-     *       "id": 1,
-     *       "name": "Software Development",
-     *       "category": "Technology",
-     *       "status": "active",
-     *       "interns": [{"id": 1, "user": {"name": "John"}}],
-     *       "supervisors": [{"id": 1, "user": {"name": "Jane"}}]
-     *     }
-     *   ]
-     * }
-     * @response 500 {"message": "An error occurred while retrieving specialties."}
+     * 
      */
     public function index()
     {
@@ -114,19 +91,6 @@ class SpecialtyController extends Controller
      * Retrieve details of a specific specialty including its interns and supervisors.
      *
      * @urlParam id integer required The ID of the specialty. Example: 1
-     * @response 200 {
-     *   "message": "Specialty retrieved successfully.",
-     *   "data": {
-     *     "id": 1,
-     *     "name": "Software Development",
-     *     "category": "Technology",
-     *     "status": "active",
-     *     "description": "Web and mobile development",
-     *     "interns": [],
-     *     "supervisors": []
-     *   }
-     * }
-     * @response 404 {"message": "Specialty not found."}
      */
     public function show($id)
     {
@@ -140,7 +104,7 @@ class SpecialtyController extends Controller
 
         return response()->json([
             'message' => 'Specialty retrieved successfully.',
-            'data' => $specialty,
+            'data' => new SpecialtyResource($specialty),
         ], 200);
     }
 
@@ -157,17 +121,6 @@ class SpecialtyController extends Controller
      * @bodyParam requirements string optional Prerequisites for the specialty. Example: Basic programming knowledge
      * @bodyParam skills array optional List of skills taught. Example: ["PHP", "Laravel", "Vue.js"]
      * @bodyParam partner_companies array optional Companies partnering with this specialty. Example: ["Tech Corp", "DevHub"]
-     * @response 200 {
-     *   "message": "Specialty updated successfully.",
-     *   "data": {
-     *     "id": 1,
-     *     "name": "Software Development",
-     *     "category": "Technology",
-     *     "status": "active"
-     *   }
-     * }
-     * @response 404 {"message": "Specialty not found."}
-     * @response 422 {"message": "Invalid input", "errors": {"name": ["The name has already been taken."]}}
      */
     // New update method to handle editing a specialty
     public function update(Request $request, $id)
@@ -206,7 +159,7 @@ class SpecialtyController extends Controller
 
         return response()->json([
             'message' => 'Specialty updated successfully.',
-            'data' => $specialty,
+            'data' => new SpecialtyResource($specialty),
         ], 200);
     }
 
@@ -216,58 +169,8 @@ class SpecialtyController extends Controller
      * Retrieve the specialty associated with the authenticated user (intern or supervisor).
      * Returns the user's role and their complete specialty details including all interns and supervisors in that specialty.
      *
-     * @response 200 scenario="Intern User" {
-     *   "role": "intern",
-     *   "specialty": {
-     *     "id": 1,
-     *     "name": "Software Development",
-     *     "category": "Technology",
-     *     "status": "active",
-     *     "description": "Web and mobile application development",
-     *     "requirements": "Basic programming knowledge required",
-     *     "skills": ["JavaScript", "PHP", "Laravel"],
-     *     "partner_companies": ["Company A", "Company B"],
-     *     "created_at": "2025-01-15T10:00:00.000000Z",
-     *     "updated_at": "2025-01-15T10:00:00.000000Z",
-     *     "interns": [
-     *       {
-     *         "id": 1,
-     *         "user_id": 5,
-     *         "specialty_id": 1,
-     *         "user": {"id": 5, "name": "John Doe", "email": "john@example.com"}
-     *       }
-     *     ],
-     *     "supervisors": [
-     *       {
-     *         "id": 1,
-     *         "user_id": 3,
-     *         "specialty_id": 1,
-     *         "user": {"id": 3, "name": "Jane Smith", "email": "jane@example.com"}
-     *       }
-     *     ]
-     *   }
-     * }
-     * @response 200 scenario="Supervisor User" {
-     *   "role": "supervisor",
-     *   "specialty": {
-     *     "id": 1,
-     *     "name": "Software Development",
-     *     "category": "Technology",
-     *     "status": "active",
-     *     "description": "Web and mobile application development",
-     *     "requirements": "Basic programming knowledge required",
-     *     "skills": ["JavaScript", "PHP", "Laravel"],
-     *     "partner_companies": ["Company A", "Company B"],
-     *     "created_at": "2025-01-15T10:00:00.000000Z",
-     *     "updated_at": "2025-01-15T10:00:00.000000Z",
-     *     "interns": [],
-     *     "supervisors": []
-     *   }
-     * }
-     * @response 401 {"message": "User not authenticated."}
-     * @response 404 {"message": "No associated specialty found for this user."}
      */
-    public function mySpecialty(Request $request)
+    public function mySpecialty(Request $request): \Illuminate\Http\JsonResponse
     {
         $user = AuthHelper::getUserFromBearerToken($request);
 
@@ -287,7 +190,7 @@ class SpecialtyController extends Controller
             if ($specialty) {
                 return response()->json([
                     'role' => 'intern',
-                    'specialty' => $specialty,
+                    'specialty' => new SpecialtyResource($specialty),
                 ], 200);
             }
         }
@@ -300,7 +203,7 @@ class SpecialtyController extends Controller
             if ($specialty) {
                 return response()->json([
                     'role' => 'supervisor',
-                    'specialty' => $specialty,
+                    'specialty' => new SpecialtyResource($specialty),
                 ], 200);
             }
         }
@@ -316,8 +219,6 @@ class SpecialtyController extends Controller
      * Permanently remove a specialty from the system.
      *
      * @urlParam id integer required The ID of the specialty to delete. Example: 1
-     * @response 200 {"message": "Specialty deleted successfully."}
-     * @response 404 {"message": "Specialty not found."}
      */
     public function destroy($id)
     {

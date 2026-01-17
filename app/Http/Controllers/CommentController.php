@@ -23,18 +23,6 @@ class CommentController extends Controller
      *
      * @queryParam task_id integer Filter comments by task ID. Example: 1
      *
-     * @response 200 {
-     *   "success": true,
-     *   "data": [
-     *     {
-     *       "id": 1,
-     *       "body": "Great progress!",
-     *       "user": {"id": 1, "name": "John Doe"},
-     *       "task": {"id": 1, "title": "Complete Report"}
-     *     }
-     *   ]
-     * }
-     * @response 500 {"success": false, "message": "Failed to retrieve comments"}
      */
     public function index(Request $request)
     {
@@ -123,18 +111,6 @@ class CommentController extends Controller
      * @bodyParam body string required The comment content (max 1000 characters). Example: Great progress on this task!
      * @bodyParam task_id integer required The task to comment on. Example: 1
      *
-     * @response 201 {
-     *   "success": true,
-     *   "message": "Comment created successfully",
-     *   "data": {
-     *     "id": 1,
-     *     "body": "Great progress on this task!",
-     *     "user": {"id": 5, "name": "John Doe"},
-     *     "task": {"id": 1, "title": "Complete Report"}
-     *   }
-     * }
-     * @response 422 {"success": false, "message": "Validation failed", "errors": {}}
-     * @response 500 {"success": false, "message": "Failed to create comment"}
      */
     public function store(Request $request)
     {
@@ -190,17 +166,6 @@ class CommentController extends Controller
      *
      * @urlParam id integer required The comment ID. Example: 1
      *
-     * @response 200 {
-     *   "success": true,
-     *   "data": {
-     *     "id": 1,
-     *     "body": "Great progress!",
-     *     "user": {"id": 5, "name": "John Doe"},
-     *     "task": {"id": 1, "title": "Complete Report"}
-     *   }
-     * }
-     * @response 404 {"success": false, "message": "Comment not found"}
-     * @response 500 {"success": false, "message": "Failed to retrieve comment"}
      */
     public function show($id)
     {
@@ -233,19 +198,6 @@ class CommentController extends Controller
      *
      * @urlParam taskId integer required The task ID. Example: 1
      *
-     * @response 200 {
-     *   "success": true,
-     *   "data": [
-     *     {
-     *       "id": 1,
-     *       "body": "Great progress!",
-     *       "user": {"id": 5, "name": "John Doe", "email": "john@example.com", "avatar": null},
-     *       "created_at": "2026-01-17T10:30:00Z"
-     *     }
-     *   ]
-     * }
-     * @response 404 {"success": false, "message": "Task not found"}
-     * @response 500 {"success": false, "message": "Failed to retrieve comments"}
      */
     public function getTaskComments($taskId)
     {
@@ -293,15 +245,6 @@ class CommentController extends Controller
      *
      * @bodyParam body string required The updated comment content (max 1000 characters). Example: Updated comment text
      *
-     * @response 200 {
-     *   "success": true,
-     *   "message": "Comment updated successfully",
-     *   "data": {"id": 1, "body": "Updated comment text"}
-     * }
-     * @response 403 {"success": false, "message": "Unauthorized to edit this comment"}
-     * @response 404 {"success": false, "message": "Comment not found"}
-     * @response 422 {"success": false, "message": "Validation failed"}
-     * @response 500 {"success": false, "message": "Failed to update comment"}
      */
     public function update(Request $request, $id)
     {
@@ -361,10 +304,6 @@ class CommentController extends Controller
      *
      * @urlParam id integer required The comment ID. Example: 1
      *
-     * @response 200 {"success": true, "message": "Comment deleted successfully"}
-     * @response 403 {"success": false, "message": "Unauthorized to delete this comment"}
-     * @response 404 {"success": false, "message": "Comment not found"}
-     * @response 500 {"success": false, "message": "Failed to delete comment"}
      */
     public function destroy(Request $request, $id)
     {
