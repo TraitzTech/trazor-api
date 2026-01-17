@@ -20,6 +20,11 @@ class Intern extends Model
         'end_date',
     ];
 
+    protected $casts = [
+        'start_date' => 'date:Y-m-d',
+        'end_date' => 'date:Y-m-d',
+    ];
+
     public function specialty()
     {
         return $this->belongsTo(Specialty::class);
