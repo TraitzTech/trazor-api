@@ -10,12 +10,30 @@ use App\Models\Supervisor;
 use App\Models\Task;
 use Illuminate\Http\Request;
 
+/**
+ * @tags Supervisor
+ */
 class SupervisorController extends Controller
 {
     /**
-     * Get all interns with the same specialty as a given supervisor.
+     * Get Interns by Specialty
      *
-     * @return \Illuminate\Http\JsonResponse
+     * Retrieve all interns that share the same specialty as the authenticated supervisor.
+     *
+     * @response 200 {
+     *   "interns": [
+     *     {
+     *       "id": 1,
+     *       "user_id": 5,
+     *       "specialty_id": 2,
+     *       "user": {"id": 5, "name": "John Doe", "email": "john@example.com"},
+     *       "specialty": {"id": 2, "name": "Software Development"}
+     *     }
+     *   ]
+     * }
+     * @response 401 {"message": "Unauthorized"}
+     * @response 404 {"message": "Supervisor does not have a specialty assigned."}
+     * @response 404 {"message": "No interns found with the same specialty as this supervisor."}
      */
     public function getInternsBySupervisorSpecialty(Request $request)
     {
@@ -47,14 +65,27 @@ class SupervisorController extends Controller
     }
 
     /**
-     * Get announcements relevant to the authenticated supervisor.
+     * Get Supervisor Announcements
      *
-     * Returns announcements targeted to:
-     * - All users
-     * - Supervisors specifically
-     * - The supervisor's specialty
+     * Retrieve announcements relevant to the authenticated supervisor.
+     * Returns announcements targeted to all users, supervisors specifically,
+     * or the supervisor's specialty.
      *
-     * @return \Illuminate\Http\JsonResponse
+     * @response 200 {
+     *   "announcements": [
+     *     {
+     *       "id": 1,
+     *       "title": "Weekly Meeting",
+     *       "content": "Meeting at 10am",
+     *       "target": "supervisor",
+     *       "author": {"id": 1, "name": "Admin"},
+     *       "specialty": null
+     *     }
+     *   ],
+     *   "count": 1
+     * }
+     * @response 401 {"message": "Unauthorized"}
+     * @response 403 {"message": "User is not a supervisor"}
      */
     public function getAnnouncements(Request $request)
     {
@@ -89,12 +120,30 @@ class SupervisorController extends Controller
     }
 
     /**
-     * Get all tasks for the supervisor's specialty.
+     * Get Specialty Tasks
      *
-     * Returns tasks with their assigned interns, progress summary,
-     * and related data for the supervisor's specialty.
+     * Retrieve all tasks for the supervisor's specialty with assigned interns and progress summaries.
      *
-     * @return \Illuminate\Http\JsonResponse
+     * @response 200 {
+     *   "tasks": [
+     *     {
+     *       "id": 1,
+     *       "title": "Build REST API",
+     *       "description": "Create a RESTful API",
+     *       "due_date": "2025-02-15",
+     *       "status": "pending",
+     *       "specialty": {"id": 2, "name": "Software Development"},
+     *       "assigner": {"id": 1, "name": "Admin"},
+     *       "progress": {"total": 5, "completed": 2, "in_progress": 1, "pending": 2},
+     *       "interns": []
+     *     }
+     *   ],
+     *   "count": 1,
+     *   "specialty": {"id": 2, "name": "Software Development"}
+     * }
+     * @response 401 {"message": "Unauthorized"}
+     * @response 403 {"message": "User is not a supervisor"}
+     * @response 404 {"message": "Supervisor does not have a specialty assigned"}
      */
     public function getTasks(Request $request)
     {
@@ -151,9 +200,27 @@ class SupervisorController extends Controller
     }
 
     /**
-     * Get a specific task with full details for the supervisor.
+     * Get Task Details
      *
-     * @return \Illuminate\Http\JsonResponse
+     * Retrieve full details of a specific task including assigned interns and their progress.
+     *
+     * @urlParam taskId integer required The ID of the task. Example: 1
+     * @response 200 {
+     *   "task": {
+     *     "id": 1,
+     *     "title": "Build REST API",
+     *     "description": "Create a RESTful API",
+     *     "due_date": "2025-02-15",
+     *     "status": "pending",
+     *     "specialty": {},
+     *     "assigner": {},
+     *     "progress": {"total": 5, "completed": 2},
+     *     "interns": []
+     *   }
+     * }
+     * @response 401 {"message": "Unauthorized"}
+     * @response 403 {"message": "User is not a supervisor"}
+     * @response 404 {"message": "Task not found or not in your specialty"}
      */
     public function getTask(Request $request, $taskId)
     {
@@ -211,11 +278,25 @@ class SupervisorController extends Controller
     }
 
     /**
-     * Get all task submissions (attachments) for the supervisor's specialty tasks.
+     * Get All Task Submissions
      *
-     * Returns all file submissions from interns for tasks in the supervisor's specialty.
+     * Retrieve all file submissions (attachments) from interns for tasks in the supervisor's specialty.
      *
-     * @return \Illuminate\Http\JsonResponse
+     * @response 200 {
+     *   "submissions": [
+     *     {
+     *       "id": 1,
+     *       "file_path": "attachments/report.pdf",
+     *       "file_name": "report.pdf",
+     *       "task": {"id": 1, "title": "Build API"},
+     *       "uploader": {"id": 5, "name": "John Doe"}
+     *     }
+     *   ],
+     *   "count": 1
+     * }
+     * @response 401 {"message": "Unauthorized"}
+     * @response 403 {"message": "User is not a supervisor"}
+     * @response 404 {"message": "Supervisor does not have a specialty assigned"}
      */
     public function getTaskSubmissions(Request $request)
     {
@@ -267,9 +348,27 @@ class SupervisorController extends Controller
     }
 
     /**
-     * Get task submissions for a specific task.
+     * Get Task Submissions by Task
      *
-     * @return \Illuminate\Http\JsonResponse
+     * Retrieve all file submissions for a specific task in the supervisor's specialty.
+     *
+     * @urlParam taskId integer required The ID of the task. Example: 1
+     * @response 200 {
+     *   "task": {"id": 1, "title": "Build API"},
+     *   "submissions": [
+     *     {
+     *       "id": 1,
+     *       "original_name": "report.pdf",
+     *       "file_size": 102400,
+     *       "mime_type": "application/pdf",
+     *       "uploader": {"id": 5, "name": "John Doe"}
+     *     }
+     *   ],
+     *   "count": 1
+     * }
+     * @response 401 {"message": "Unauthorized"}
+     * @response 403 {"message": "User is not a supervisor"}
+     * @response 404 {"message": "Task not found or not in your specialty"}
      */
     public function getTaskSubmissionsForTask(Request $request, $taskId)
     {
@@ -314,11 +413,32 @@ class SupervisorController extends Controller
     }
 
     /**
-     * Get supervisor dashboard summary.
+     * Get Supervisor Dashboard
      *
-     * Returns overview statistics for the supervisor's specialty.
+     * Retrieve dashboard summary with statistics for the supervisor's specialty including
+     * intern count, task breakdown by status, submission count, and recent submissions.
      *
-     * @return \Illuminate\Http\JsonResponse
+     * @response 200 {
+     *   "specialty": {"id": 2, "name": "Software Development"},
+     *   "stats": {
+     *     "interns_count": 10,
+     *     "tasks_count": 5,
+     *     "pending_tasks": 2,
+     *     "in_progress_tasks": 2,
+     *     "completed_tasks": 1,
+     *     "submissions_count": 15
+     *   },
+     *   "recent_submissions": [
+     *     {
+     *       "id": 1,
+     *       "task": {"id": 1, "title": "Build API"},
+     *       "uploader": {"id": 5, "name": "John"}
+     *     }
+     *   ]
+     * }
+     * @response 401 {"message": "Unauthorized"}
+     * @response 403 {"message": "User is not a supervisor"}
+     * @response 404 {"message": "Supervisor does not have a specialty assigned"}
      */
     public function getDashboard(Request $request)
     {

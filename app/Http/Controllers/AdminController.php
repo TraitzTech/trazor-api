@@ -19,10 +19,41 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
+/**
+ * @tags Admin Management
+ */
 class AdminController extends Controller
 {
     /**
-     * Get comprehensive dashboard data
+     * Get Dashboard Data
+     *
+     * Retrieve comprehensive dashboard analytics and statistics for administrators.
+     * Includes user metrics, recent activities, pending items, task overview,
+     * logbook statistics, and specialty breakdowns.
+     *
+     * @queryParam period string Time period for analytics. Accepts: 24h, 7d, 30d, 90d. Example: 7d
+     *
+     * @response 200 {
+     *   "status": "success",
+     *   "message": "Dashboard data retrieved successfully",
+     *   "data": {
+     *     "metrics": {
+     *       "total_users": {"value": 150, "change": "+12%", "trend": "up"},
+     *       "active_internships": {"value": 45, "change": "+8%", "trend": "up"},
+     *       "total_applications": {"value": 200, "change": "+5%", "trend": "up"},
+     *       "successful_matches": {"value": 120, "change": "+15%", "trend": "up"}
+     *     },
+     *     "recent_activities": [],
+     *     "pending_items": [],
+     *     "system_stats": {},
+     *     "task_overview": {},
+     *     "logbook_stats": {},
+     *     "specialty_stats": [],
+     *     "period": "7d",
+     *     "last_updated": "2026-01-17T10:30:00Z"
+     *   }
+     * }
+     * @response 500 {"status": "error", "message": "Failed to retrieve dashboard data"}
      */
     public function getDashboardData(Request $request)
     {
@@ -399,6 +430,34 @@ class AdminController extends Controller
         }
     }
 
+    /**
+     * Get All Interns
+     *
+     * Retrieve a list of all interns in the system with their user profiles,
+     * specialty assignments, and associated supervisors.
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": [
+     *     {
+     *       "id": 1,
+     *       "user_id": 5,
+     *       "name": "John Intern",
+     *       "email": "john@example.com",
+     *       "status": "active",
+     *       "joinDate": "2026-01-15",
+     *       "specialty": "Software Development",
+     *       "institution": "University of Buea",
+     *       "matricNumber": "INT-2026-0001",
+     *       "hortNumber": "HORT001",
+     *       "startDate": "2026-01-20",
+     *       "endDate": "2026-06-20",
+     *       "supervisors": [{"id": 1, "name": "Jane Supervisor", "email": "jane@example.com"}],
+     *       "role": "intern"
+     *     }
+     *   ]
+     * }
+     */
     public function getAllInterns(Request $request): JsonResponse
     {
         $interns = Intern::with(['user', 'specialty'])
@@ -436,6 +495,31 @@ class AdminController extends Controller
         ]);
     }
 
+    /**
+     * Get All Supervisors
+     *
+     * Retrieve a list of all supervisors in the system with their user profiles,
+     * specialty assignments, and the count of interns they oversee.
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": [
+     *     {
+     *       "id": 1,
+     *       "user_id": 3,
+     *       "name": "Jane Supervisor",
+     *       "email": "jane@example.com",
+     *       "status": "active",
+     *       "joinDate": "2025-06-01",
+     *       "specialty": "Software Development",
+     *       "department": "Engineering",
+     *       "position": "Senior Developer",
+     *       "internCount": 5,
+     *       "role": "supervisor"
+     *     }
+     *   ]
+     * }
+     */
     public function getAllSupervisors(Request $request): JsonResponse
     {
         $supervisors = Supervisor::with(['user', 'specialty'])
@@ -464,6 +548,29 @@ class AdminController extends Controller
         ]);
     }
 
+    /**
+     * Get All Admins
+     *
+     * Retrieve a list of all administrator accounts with their user profiles
+     * and assigned permissions.
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": [
+     *     {
+     *       "id": 1,
+     *       "user_id": 1,
+     *       "name": "Super Admin",
+     *       "email": "admin@trazor.com",
+     *       "status": "active",
+     *       "joinDate": "2025-01-01",
+     *       "department": "Administration",
+     *       "permissions": ["user_management", "analytics"],
+     *       "role": "admin"
+     *     }
+     *   ]
+     * }
+     */
     public function getAllAdmins(Request $request): JsonResponse
     {
         $admins = Admin::with(['user'])
@@ -490,7 +597,21 @@ class AdminController extends Controller
         ]);
     }
 
-    // Alternative method: Get all users in one API call
+    /**
+     * Get All Users
+     *
+     * Retrieve a consolidated list of all users (interns, supervisors, and admins)
+     * in a single API call. Useful for displaying a unified user management view.
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": [
+     *     {"id": 1, "user_id": 5, "name": "John", "role": "intern", "status": "active"},
+     *     {"id": 2, "user_id": 3, "name": "Jane", "role": "supervisor", "status": "active"},
+     *     {"id": 3, "user_id": 1, "name": "Admin", "role": "admin", "status": "active"}
+     *   ]
+     * }
+     */
     public function getAllUsers(Request $request): JsonResponse
     {
         $users = collect();
@@ -561,6 +682,30 @@ class AdminController extends Controller
         ]);
     }
 
+    /**
+     * Show User Details
+     *
+     * Retrieve detailed information about a specific user including their profile,
+     * role-specific data, settings, and recent activity history.
+     *
+     * @urlParam id integer required The user ID. Example: 5
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": {
+     *     "id": 5,
+     *     "name": "John Doe",
+     *     "email": "john@example.com",
+     *     "status": "active",
+     *     "role": "intern",
+     *     "specialty": "Software Development",
+     *     "institution": "University of Buea",
+     *     "settings": {"email_notifications": true, "profile_public": true, "two_factor_auth": false},
+     *     "activities": [{"action": "Logbook filled", "time": "January 17, 2026 10:30 AM"}]
+     *   }
+     * }
+     * @response 404 {"message": "No query results for model [App\\Models\\User]"}
+     */
     public function showUser($id)
     {
         $user = User::with('intern', 'supervisor', 'admin', 'settings')->findOrFail($id);
@@ -606,6 +751,22 @@ class AdminController extends Controller
 
     }
 
+    /**
+     * Toggle User Status
+     *
+     * Activate or deactivate a user account. Toggles the `is_active` status
+     * of the specified user. Deactivated users cannot log in.
+     *
+     * @urlParam id integer required The user ID. Example: 5
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "message": "User status updated successfully",
+     *   "data": {"id": 5, "status": "inactive"}
+     * }
+     * @response 404 {"success": false, "message": "User not found"}
+     * @response 500 {"success": false, "message": "Failed to update user status"}
+     */
     public function toggleUserStatus(Request $request, $id): JsonResponse
     {
         try {
@@ -640,6 +801,37 @@ class AdminController extends Controller
         }
     }
 
+    /**
+     * Update User
+     *
+     * Update a user's profile information and role-specific data.
+     * The fields required depend on the user's role.
+     *
+     * **Role-specific fields:**
+     * - **Intern**: institution, specialty, hort_number, start_date, end_date
+     * - **Supervisor**: specialty
+     * - **Admin/Super Admin**: No additional fields required
+     *
+     * @urlParam id integer required The user ID. Example: 5
+     *
+     * @bodyParam name string required The user's full name. Example: John Doe
+     * @bodyParam email string required The user's email. Example: john@example.com
+     * @bodyParam role string required The user's role. Example: intern
+     * @bodyParam status string required Account status. Example: active
+     * @bodyParam phone string Phone number. Example: +237612345678
+     * @bodyParam location string Location. Example: Douala, Cameroon
+     * @bodyParam bio string Biography. Example: Experienced developer
+     * @bodyParam institution string Required for intern. Example: University of Buea
+     * @bodyParam specialty integer Required for intern/supervisor. Example: 1
+     *
+     * @response 200 {
+     *   "message": "User updated successfully",
+     *   "user": {"id": 5, "name": "John Doe", "email": "john@example.com"}
+     * }
+     * @response 404 {"message": "No query results for model [App\\Models\\User]"}
+     * @response 422 {"errors": {"email": ["The email has already been taken."]}}
+     * @response 500 {"message": "Error updating user"}
+     */
     public function updateUser(Request $request, $id)
     {
         $user = User::findOrFail($id);
@@ -818,6 +1010,23 @@ class AdminController extends Controller
         //
     }
 
+    /**
+     * Get User Activities
+     *
+     * Retrieve the activity log for a specific user, showing all actions
+     * they have performed in the system, ordered by most recent first.
+     *
+     * @urlParam userId integer required The user ID. Example: 5
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": [
+     *     {"id": 1, "user_id": 5, "action": "User logged in", "created_at": "2026-01-17T10:30:00Z"},
+     *     {"id": 2, "user_id": 5, "action": "Logbook filled", "created_at": "2026-01-17T09:00:00Z"}
+     *   ]
+     * }
+     * @response 404 {"message": "No query results for model [App\\Models\\User]"}
+     */
     public function getUserActivities($userId)
     {
         $user = User::findOrFail($userId);

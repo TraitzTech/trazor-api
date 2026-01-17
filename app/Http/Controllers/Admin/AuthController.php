@@ -18,8 +18,32 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * @tags Admin Authentication
+ */
 class AuthController extends Controller
 {
+    /**
+     * Admin Login
+     *
+     * Authenticate an administrator with their email and password credentials.
+     * Only users with the 'admin' role can successfully login through this endpoint.
+     * Returns an access token upon successful authentication.
+     *
+     * @unauthenticated
+     *
+     * @bodyParam email string required The admin's email address. Example: admin@trazor.com
+     * @bodyParam password string required The admin's password (minimum 6 characters). Example: adminpass123
+     *
+     * @response 200 {
+     *   "message": "Login successful",
+     *   "user": {"id": 1, "name": "Admin User", "email": "admin@trazor.com"},
+     *   "token": "1|abc123xyz..."
+     * }
+     * @response 401 {"message": "Invalid credentials"}
+     * @response 403 {"message": "Unauthorized: Not an admin"}
+     * @response 422 {"message": "Validation failed", "errors": {"email": ["The email field is required."]}}
+     */
     public function login(Request $request)
     {
         try {
@@ -102,21 +126,40 @@ class AuthController extends Controller
     }
 
     /**
-     * Create a new user (Admin only).
+     * Create User (Admin Only)
      *
-     * Creates a new user with the specified role. Password is auto-generated and sent via email.
+     * Creates a new user with the specified role. Password is auto-generated
+     * and sent to the user via email. This endpoint is restricted to administrators.
      *
-     * For **Intern** role, you must provide:
-     * - specialty_id, institution, hort_number, start_date, end_date
+     * **Role-specific requirements:**
      *
-     * For **Supervisor** role, you must provide:
-     * - specialty_id
+     * - **Intern**: Requires `specialty_id`, `institution`, `hort_number`, `start_date`, `end_date`
+     * - **Supervisor**: Requires `specialty_id`
+     * - **Admin**: Requires `permissions` array (valid values: `user_management`, `content_moderation`, `analytics`, `system_settings`)
      *
-     * For **Admin** role, you must provide:
-     * - permissions (array of: user_management, content_moderation, analytics, system_settings)
+     * @bodyParam name string required The user's full name. Example: Jane Smith
+     * @bodyParam email string required Unique email address. Example: jane@example.com
+     * @bodyParam phone string The user's phone number. Example: +237612345678
+     * @bodyParam location string The user's location. Example: Douala, Cameroon
+     * @bodyParam bio string A short biography. Example: Experienced software developer
+     * @bodyParam role string required The role to assign. Example: intern
+     * @bodyParam specialty_id integer Required for intern/supervisor. Example: 1
+     * @bodyParam institution string Required for intern. Example: University of Buea
+     * @bodyParam hort_number string Required for intern. Example: HORT001
+     * @bodyParam start_date date Required for intern. Example: 2026-01-20
+     * @bodyParam end_date date Required for intern. Example: 2026-06-20
+     * @bodyParam permissions array Required for admin. Example: ["user_management", "analytics"]
      *
-     * @param  \App\Http\Requests\Admin\CreateUserRequest  $request
-     * @return \Illuminate\Http\JsonResponse
+     * @response 201 {
+     *   "success": true,
+     *   "message": "Intern created successfully. Login credentials have been sent to their email.",
+     *   "data": {
+     *     "user": {"id": 5, "name": "Jane Smith", "email": "jane@example.com"},
+     *     "matric_number": "INT-2026-0005"
+     *   }
+     * }
+     * @response 422 {"success": false, "message": "Validation failed", "errors": {}}
+     * @response 500 {"success": false, "message": "An error occurred while creating the user"}
      */
     public function createUser(CreateUserRequest $request)
     {
@@ -265,6 +308,21 @@ class AuthController extends Controller
         }
     }
 
+    /**
+     * Get All Specialties (Admin)
+     *
+     * Retrieve a list of all specialties available in the system.
+     * Useful for populating dropdowns when creating users.
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": [
+     *     {"id": 1, "name": "Software Development", "description": "Web and mobile development"},
+     *     {"id": 2, "name": "Data Science", "description": "Data analysis and machine learning"}
+     *   ]
+     * }
+     * @response 500 {"success": false, "message": "Failed to fetch specialties"}
+     */
     public function getSpecialties()
     {
         try {

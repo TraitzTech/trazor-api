@@ -8,8 +8,31 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * @tags Announcements
+ */
 class AnnouncementController extends Controller
 {
+    /**
+     * List All Announcements
+     *
+     * Retrieve all announcements in the system, ordered by most recent first.
+     * Each announcement includes its author information.
+     *
+     * @response 200 {
+     *   "announcements": [
+     *     {
+     *       "id": 1,
+     *       "title": "Welcome to Trazor",
+     *       "content": "Welcome message content...",
+     *       "target": "all",
+     *       "priority": "normal",
+     *       "created_by": 1,
+     *       "author": {"id": 1, "name": "Admin User"}
+     *     }
+     *   ]
+     * }
+     */
     public function index()
     {
         return response()->json([
@@ -17,6 +40,25 @@ class AnnouncementController extends Controller
         ]);
     }
 
+    /**
+     * Show Announcement
+     *
+     * Retrieve a specific announcement by its ID with author details.
+     *
+     * @urlParam id integer required The announcement ID. Example: 1
+     *
+     * @response 200 {
+     *   "announcement": {
+     *     "id": 1,
+     *     "title": "Welcome to Trazor",
+     *     "content": "Welcome message content...",
+     *     "target": "all",
+     *     "priority": "normal",
+     *     "author": {"id": 1, "name": "Admin User"}
+     *   }
+     * }
+     * @response 404 {"message": "No query results for model [App\\Models\\Announcement]"}
+     */
     public function show($id)
     {
         $announcement = Announcement::with('author')->findOrFail($id);
@@ -26,6 +68,33 @@ class AnnouncementController extends Controller
         ]);
     }
 
+    /**
+     * Create Announcement
+     *
+     * Create a new announcement and automatically send push notifications
+     * to all matching recipients based on the target audience.
+     *
+     * **Target options:**
+     * - `all` - Send to all users
+     * - `intern` - Send to all interns
+     * - `supervisor` - Send to all supervisors
+     * - `specialty` - Send to users in a specific specialty (requires specialty_id)
+     *
+     * @bodyParam title string required The announcement title. Example: Important Update
+     * @bodyParam content string required The announcement body content. Example: Please read this important message...
+     * @bodyParam target string required Target audience. Example: all
+     * @bodyParam specialty_id integer Required when target is "specialty". Example: 1
+     * @bodyParam priority string Priority level. Example: normal
+     *
+     * @response 200 {
+     *   "message": "Announcement created successfully",
+     *   "data": {"id": 5, "title": "Important Update", "target": "all"},
+     *   "recipients_count": 25,
+     *   "notification_results": {"sent": 20, "failed": 2, "duplicates": 0, "no_token": 3}
+     * }
+     * @response 401 {"message": "Unauthorized"}
+     * @response 422 {"message": "Validation failed"}
+     */
     public function store(Request $request)
     {
         $user = AuthHelper::getUserFromBearerToken($request);
@@ -96,6 +165,27 @@ class AnnouncementController extends Controller
         ]);
     }
 
+    /**
+     * Update Announcement
+     *
+     * Update an existing announcement. Only the creator or an admin can edit an announcement.
+     *
+     * @urlParam id integer required The announcement ID. Example: 1
+     *
+     * @bodyParam title string required The announcement title. Example: Updated Title
+     * @bodyParam content string required The announcement content. Example: Updated content...
+     * @bodyParam target string required Target audience. Example: all
+     * @bodyParam specialty_id integer Required when target is "specialty". Example: 1
+     * @bodyParam priority string Priority level. Example: high
+     *
+     * @response 200 {
+     *   "message": "Announcement updated successfully",
+     *   "data": {"id": 1, "title": "Updated Title", "content": "Updated content..."}
+     * }
+     * @response 401 {"message": "Unauthorized"}
+     * @response 403 {"message": "Forbidden - You can only edit your own announcements"}
+     * @response 404 {"message": "No query results for model [App\\Models\\Announcement]"}
+     */
     public function update(Request $request, $id)
     {
         $user = AuthHelper::getUserFromBearerToken($request);
@@ -128,6 +218,18 @@ class AnnouncementController extends Controller
         ]);
     }
 
+    /**
+     * Delete Announcement
+     *
+     * Permanently delete an announcement. Only the creator or an admin can delete an announcement.
+     *
+     * @urlParam id integer required The announcement ID. Example: 1
+     *
+     * @response 200 {"message": "Announcement deleted successfully"}
+     * @response 401 {"message": "Unauthorized"}
+     * @response 403 {"message": "Forbidden - You can only delete your own announcements"}
+     * @response 404 {"message": "No query results for model [App\\Models\\Announcement]"}
+     */
     public function destroy(Request $request, $id)
     {
         $user = AuthHelper::getUserFromBearerToken($request);
@@ -151,6 +253,18 @@ class AnnouncementController extends Controller
         ]);
     }
 
+    /**
+     * Get Announcements by Creator
+     *
+     * Retrieve all announcements created by the authenticated user.
+     * Useful for managing one's own announcements.
+     *
+     * @response 200 {
+     *   "announcements": [
+     *     {"id": 1, "title": "My Announcement", "target": "all", "author": {"id": 1, "name": "John"}}
+     *   ]
+     * }
+     */
     public function getByCreator(Request $request)
     {
         $user = AuthHelper::getUserFromBearerToken($request);
@@ -164,6 +278,22 @@ class AnnouncementController extends Controller
         ]);
     }
 
+    /**
+     * Get Announcements for Intern
+     *
+     * Retrieve announcements relevant to the authenticated intern.
+     * Returns announcements targeted to:
+     * - All users
+     * - Interns specifically
+     * - The intern's assigned specialty
+     *
+     * @response 200 {
+     *   "announcements": [
+     *     {"id": 1, "title": "Welcome Interns", "target": "intern", "author": {"id": 1, "name": "Admin"}}
+     *   ]
+     * }
+     * @response 403 {"message": "User is not an intern"}
+     */
     public function getForIntern(Request $request)
     {
         $user = AuthHelper::getUserFromBearerToken($request);

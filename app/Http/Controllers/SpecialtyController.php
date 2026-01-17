@@ -8,8 +8,36 @@ use App\Models\Specialty;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
+/**
+ * @tags Specialties
+ */
 class SpecialtyController extends Controller
 {
+    /**
+     * Create Specialty
+     *
+     * Create a new specialty/department in the system.
+     * Specialties are used to organize interns and supervisors.
+     *
+     * @bodyParam name string required Unique specialty name. Example: Software Development
+     * @bodyParam category string required Specialty category. Example: Technology
+     * @bodyParam status string required Status of the specialty. Example: active
+     * @bodyParam description string Optional description. Example: Web and mobile application development
+     * @bodyParam requirements string Optional requirements. Example: Basic programming knowledge required
+     * @bodyParam skills array Optional array of relevant skills. Example: ["JavaScript", "PHP", "Laravel"]
+     * @bodyParam partner_companies array Optional array of partner companies. Example: ["Company A", "Company B"]
+     *
+     * @response 201 {
+     *   "message": "Specialty created successfully.",
+     *   "data": {
+     *     "id": 1,
+     *     "name": "Software Development",
+     *     "category": "Technology",
+     *     "status": "active"
+     *   }
+     * }
+     * @response 422 {"message": "Invalid input", "errors": {"name": ["The name has already been taken."]}}
+     */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -41,6 +69,26 @@ class SpecialtyController extends Controller
         ], 201);
     }
 
+    /**
+     * List All Specialties
+     *
+     * Retrieve all specialties with their associated interns and supervisors.
+     *
+     * @response 200 {
+     *   "message": "Specialties retrieved successfully.",
+     *   "data": [
+     *     {
+     *       "id": 1,
+     *       "name": "Software Development",
+     *       "category": "Technology",
+     *       "status": "active",
+     *       "interns": [{"id": 1, "user": {"name": "John"}}],
+     *       "supervisors": [{"id": 1, "user": {"name": "Jane"}}]
+     *     }
+     *   ]
+     * }
+     * @response 500 {"message": "An error occurred while retrieving specialties."}
+     */
     public function index()
     {
         try {
@@ -60,6 +108,26 @@ class SpecialtyController extends Controller
         }
     }
 
+    /**
+     * Get Specialty Details
+     *
+     * Retrieve details of a specific specialty including its interns and supervisors.
+     *
+     * @urlParam id integer required The ID of the specialty. Example: 1
+     * @response 200 {
+     *   "message": "Specialty retrieved successfully.",
+     *   "data": {
+     *     "id": 1,
+     *     "name": "Software Development",
+     *     "category": "Technology",
+     *     "status": "active",
+     *     "description": "Web and mobile development",
+     *     "interns": [],
+     *     "supervisors": []
+     *   }
+     * }
+     * @response 404 {"message": "Specialty not found."}
+     */
     public function show($id)
     {
         $specialty = Specialty::with(['interns.user', 'supervisors.user'])->find($id);
@@ -76,6 +144,31 @@ class SpecialtyController extends Controller
         ], 200);
     }
 
+    /**
+     * Update Specialty
+     *
+     * Update an existing specialty's details.
+     *
+     * @urlParam id integer required The ID of the specialty to update. Example: 1
+     * @bodyParam name string required The specialty name. Must be unique except for current specialty. Example: Software Development
+     * @bodyParam category string required The category of the specialty. Example: Technology
+     * @bodyParam status string required The status (active or inactive). Example: active
+     * @bodyParam description string optional A description of the specialty. Example: Web and mobile app development
+     * @bodyParam requirements string optional Prerequisites for the specialty. Example: Basic programming knowledge
+     * @bodyParam skills array optional List of skills taught. Example: ["PHP", "Laravel", "Vue.js"]
+     * @bodyParam partner_companies array optional Companies partnering with this specialty. Example: ["Tech Corp", "DevHub"]
+     * @response 200 {
+     *   "message": "Specialty updated successfully.",
+     *   "data": {
+     *     "id": 1,
+     *     "name": "Software Development",
+     *     "category": "Technology",
+     *     "status": "active"
+     *   }
+     * }
+     * @response 404 {"message": "Specialty not found."}
+     * @response 422 {"message": "Invalid input", "errors": {"name": ["The name has already been taken."]}}
+     */
     // New update method to handle editing a specialty
     public function update(Request $request, $id)
     {
@@ -117,6 +210,25 @@ class SpecialtyController extends Controller
         ], 200);
     }
 
+    /**
+     * Get My Specialty
+     *
+     * Retrieve the specialty associated with the authenticated user (intern or supervisor).
+     *
+     * @response 200 {
+     *   "role": "intern",
+     *   "specialty": {
+     *     "id": 1,
+     *     "name": "Software Development",
+     *     "category": "Technology",
+     *     "status": "active",
+     *     "interns": [],
+     *     "supervisors": []
+     *   }
+     * }
+     * @response 401 {"message": "User not authenticated."}
+     * @response 404 {"message": "No associated specialty found for this user."}
+     */
     public function mySpecialty(Request $request)
     {
         $user = AuthHelper::getUserFromBearerToken($request);
@@ -160,6 +272,15 @@ class SpecialtyController extends Controller
         ], 404);
     }
 
+    /**
+     * Delete Specialty
+     *
+     * Permanently remove a specialty from the system.
+     *
+     * @urlParam id integer required The ID of the specialty to delete. Example: 1
+     * @response 200 {"message": "Specialty deleted successfully."}
+     * @response 404 {"message": "Specialty not found."}
+     */
     public function destroy($id)
     {
         $specialty = Specialty::find($id);

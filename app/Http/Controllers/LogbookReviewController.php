@@ -7,6 +7,9 @@ use App\Models\Logbook;
 use App\Models\LogbookReview;
 use Illuminate\Http\Request;
 
+/**
+ * @tags Logbook Reviews
+ */
 class LogbookReviewController extends Controller
 {
     /**
@@ -26,7 +29,28 @@ class LogbookReviewController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Review Logbook Entry
+     *
+     * Submit a review for a logbook entry. Sets the logbook status and records
+     * feedback from the reviewer. Automatically notifies the intern about the review.
+     *
+     * @urlParam id integer required The logbook ID. Example: 1
+     *
+     * @bodyParam status string required Review status. Example: approved
+     * @bodyParam feedback string Optional feedback for the intern. Example: Great work! Keep it up.
+     *
+     * @response 200 {
+     *   "message": "Reviewed successfully",
+     *   "review": {
+     *     "id": 1,
+     *     "logbook_id": 1,
+     *     "status": "approved",
+     *     "feedback": "Great work! Keep it up.",
+     *     "reviewed_by": 3
+     *   }
+     * }
+     * @response 422 {"message": "Validation failed"}
+     * @response 404 {"message": "No query results for model [App\\Models\\Logbook]"}
      */
     public function store(Request $request, $id)
     {

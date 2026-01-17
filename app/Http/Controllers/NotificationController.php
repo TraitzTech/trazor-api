@@ -13,6 +13,9 @@ use Kreait\Firebase\Factory;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
 
+/**
+ * @tags Notifications
+ */
 class NotificationController extends Controller
 {
     private $messaging;
@@ -28,6 +31,18 @@ class NotificationController extends Controller
         }
     }
 
+    /**
+     * Update Device Token
+     *
+     * Register or update the Firebase Cloud Messaging (FCM) device token
+     * for the authenticated user. Required for receiving push notifications.
+     *
+     * @bodyParam device_token string required The FCM device token from the mobile app. Example: fMRPnQlPQq-abc123...
+     *
+     * @response 200 {"message": "Device token updated successfully."}
+     * @response 401 {"message": "Unauthorized"}
+     * @response 422 {"message": "Validation failed"}
+     */
     public function updateDeviceToken(Request $request)
     {
         $request->validate([
@@ -49,6 +64,23 @@ class NotificationController extends Controller
         return response()->json(['message' => 'Device token updated successfully.']);
     }
 
+    /**
+     * Send Push Notification
+     *
+     * Send a push notification to a specific user via Firebase Cloud Messaging.
+     * Includes duplicate prevention (same notification won't be sent twice within 2 minutes).
+     *
+     * @bodyParam user_id integer required The target user's ID. Example: 5
+     * @bodyParam title string required Notification title. Example: New Task Assigned
+     * @bodyParam body string required Notification body content. Example: You have a new task to complete
+     * @bodyParam notification_type string Type of notification for categorization. Example: task_assigned
+     * @bodyParam reference_id string Reference ID for deep linking. Example: 123
+     *
+     * @response 200 {"message": "Notification sent successfully."}
+     * @response 400 {"error": "User has no device token."}
+     * @response 422 {"message": "Invalid input", "errors": {}}
+     * @response 500 {"error": "Failed to send notification"}
+     */
     public function sendNotification(Request $request)
     {
         Log::info('sendNotification called', $request->all());
@@ -114,7 +146,25 @@ class NotificationController extends Controller
     }
 
     /**
-     * Send bulk notifications (prevents multiple individual calls)
+     * Send Bulk Notifications
+     *
+     * Send push notifications to multiple users at once.
+     * More efficient than sending individual notifications.
+     * Includes duplicate prevention and tracks delivery statistics.
+     *
+     * @bodyParam user_ids array required Array of user IDs to notify. Example: [1, 2, 3]
+     * @bodyParam title string required Notification title. Example: System Announcement
+     * @bodyParam body string required Notification body. Example: Important update for all users
+     * @bodyParam notification_type string Type for categorization. Example: announcement
+     * @bodyParam reference_id string Reference ID for deep linking. Example: 456
+     *
+     * @response 200 {
+     *   "sent": 10,
+     *   "failed": 2,
+     *   "duplicates": 1,
+     *   "no_token": 3
+     * }
+     * @response 422 {"message": "Invalid input", "errors": {}}
      */
     public function sendBulkNotifications(Request $request)
     {

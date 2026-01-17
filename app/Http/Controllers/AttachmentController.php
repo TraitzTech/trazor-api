@@ -10,10 +10,35 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * @tags Attachments
+ */
 class AttachmentController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * List Attachments
+     *
+     * Retrieve a list of all attachments, optionally filtered by task.
+     * Each attachment includes its associated task and uploader information.
+     *
+     * @queryParam task_id integer Filter attachments by task ID. Example: 1
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": [
+     *     {
+     *       "id": 1,
+     *       "task_id": 1,
+     *       "original_name": "report.pdf",
+     *       "file_size": 102400,
+     *       "mime_type": "application/pdf",
+     *       "description": "Weekly progress report",
+     *       "task": {"id": 1, "title": "Complete Report"},
+     *       "uploader": {"id": 5, "name": "John Doe"}
+     *     }
+     *   ]
+     * }
+     * @response 500 {"success": false, "message": "Failed to retrieve attachments"}
      */
     public function index(Request $request)
     {
@@ -79,7 +104,35 @@ class AttachmentController extends Controller
     public function create(Request $request) {}
 
     /**
-     * Store a newly created resource in storage.
+     * Upload Attachment
+     *
+     * Upload a file attachment to a specific task. Automatically notifies
+     * all task stakeholders (assigned interns and task creator) about the new file.
+     *
+     * **Supported file types:** PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, JPG, JPEG, PNG, GIF, ZIP, RAR, TXT
+     *
+     * **Maximum file size:** 4MB
+     *
+     * @urlParam taskId integer The task ID (optional if task_id is in body). Example: 1
+     *
+     * @bodyParam task_id integer Required if taskId not in URL. Example: 1
+     * @bodyParam file file required The file to upload (max 4MB).
+     * @bodyParam description string Optional description. Example: Weekly progress report
+     *
+     * @response 201 {
+     *   "success": true,
+     *   "message": "File uploaded successfully",
+     *   "data": {
+     *     "id": 1,
+     *     "original_name": "report.pdf",
+     *     "file_size": 102400,
+     *     "mime_type": "application/pdf",
+     *     "description": "Weekly progress report"
+     *   }
+     * }
+     * @response 404 {"success": false, "message": "Task not found"}
+     * @response 422 {"success": false, "message": "Validation failed", "errors": {}}
+     * @response 500 {"success": false, "message": "Failed to upload file"}
      */
     public function store(Request $request, $taskId = null)
     {
@@ -151,7 +204,25 @@ class AttachmentController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Show Attachment
+     *
+     * Retrieve details of a specific attachment including its task and uploader information.
+     *
+     * @urlParam id integer required The attachment ID. Example: 1
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": {
+     *     "id": 1,
+     *     "original_name": "report.pdf",
+     *     "file_size": 102400,
+     *     "mime_type": "application/pdf",
+     *     "task": {"id": 1, "title": "Complete Report"},
+     *     "uploader": {"id": 5, "name": "John Doe"}
+     *   }
+     * }
+     * @response 404 {"success": false, "message": "Attachment not found"}
+     * @response 500 {"success": false, "message": "Failed to retrieve attachment"}
      */
     public function show($id)
     {
@@ -177,7 +248,17 @@ class AttachmentController extends Controller
     }
 
     /**
-     * Download the specified resource.
+     * Download Attachment
+     *
+     * Download the file associated with an attachment.
+     * Returns the file with its original filename.
+     *
+     * @urlParam id integer required The attachment ID. Example: 1
+     *
+     * @response 200 Binary file download
+     * @response 404 {"success": false, "message": "Attachment not found"}
+     * @response 404 {"success": false, "message": "File not found on server"}
+     * @response 500 {"success": false, "message": "Failed to download file"}
      */
     public function download($id)
     {
@@ -216,7 +297,23 @@ class AttachmentController extends Controller
     public function edit($id) {}
 
     /**
-     * Update the specified resource in storage.
+     * Update Attachment
+     *
+     * Update an attachment's description. Only the uploader or an admin can update an attachment.
+     *
+     * @urlParam id integer required The attachment ID. Example: 1
+     *
+     * @bodyParam description string The new description for the attachment. Example: Updated description
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "message": "Attachment updated successfully",
+     *   "data": {"id": 1, "description": "Updated description"}
+     * }
+     * @response 403 {"success": false, "message": "Unauthorized to edit this attachment"}
+     * @response 404 {"success": false, "message": "Attachment not found"}
+     * @response 422 {"success": false, "message": "Validation failed"}
+     * @response 500 {"success": false, "message": "Failed to update attachment"}
      */
     public function update(Request $request, $id)
     {
@@ -269,7 +366,17 @@ class AttachmentController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Delete Attachment
+     *
+     * Permanently delete an attachment and its associated file from storage.
+     * Only the uploader or an admin can delete an attachment.
+     *
+     * @urlParam id integer required The attachment ID. Example: 1
+     *
+     * @response 200 {"success": true, "message": "Attachment deleted successfully"}
+     * @response 403 {"success": false, "message": "Unauthorized to delete this attachment"}
+     * @response 404 {"success": false, "message": "Attachment not found"}
+     * @response 500 {"success": false, "message": "Failed to delete attachment"}
      */
     public function destroy(Request $request, $id)
     {

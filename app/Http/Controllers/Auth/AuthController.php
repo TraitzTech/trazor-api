@@ -10,10 +10,34 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
+/**
+ * @tags Authentication
+ */
 class AuthController extends Controller
 {
     /**
-     * Authenticate and login the user
+     * Login User
+     *
+     * Authenticate a user with their email and password credentials.
+     * Returns an access token upon successful authentication along with user details.
+     *
+     * The user must have an active account to successfully login.
+     * Inactive accounts will receive a 403 Forbidden response.
+     *
+     * @unauthenticated
+     *
+     * @bodyParam email string required The user's email address. Example: user@example.com
+     * @bodyParam password string required The user's password (minimum 6 characters). Example: password123
+     *
+     * @response 200 {
+     *   "token": "1|abc123xyz...",
+     *   "user": {"id": 1, "name": "John Doe", "email": "user@example.com"},
+     *   "role": "intern",
+     *   "recent_activities": [{"action": "User logged in", "time": "January 17, 2026 10:30 AM"}]
+     * }
+     * @response 401 {"message": "Incorrect email or password."}
+     * @response 403 {"message": "Your account is not active. Please contact the system admin."}
+     * @response 422 {"message": "Invalid input", "errors": {"email": ["The email field is required."]}}
      */
     public function login(Request $request)
     {
@@ -75,7 +99,25 @@ class AuthController extends Controller
     }
 
     /**
-     * Register new user (optional)
+     * Register User
+     *
+     * Create a new user account with the provided credentials.
+     * The new user is automatically assigned the 'intern' role by default.
+     * Returns an access token upon successful registration.
+     *
+     * @unauthenticated
+     *
+     * @bodyParam name string required The user's full name. Example: John Doe
+     * @bodyParam email string required A unique email address. Example: newuser@example.com
+     * @bodyParam password string required Password (minimum 6 characters). Example: password123
+     * @bodyParam password_confirmation string required Must match the password field. Example: password123
+     *
+     * @response 200 {
+     *   "token": "1|abc123xyz...",
+     *   "user": {"id": 1, "name": "John Doe", "email": "newuser@example.com"},
+     *   "role": "intern"
+     * }
+     * @response 422 {"message": "Validation error", "errors": {"email": ["The email has already been taken."]}}
      */
     public function register(Request $request)
     {
@@ -111,7 +153,16 @@ class AuthController extends Controller
     }
 
     /**
-     * Get authenticated user details
+     * Get Authenticated User
+     *
+     * Retrieve the currently authenticated user's details and their assigned role.
+     * Requires a valid Bearer token in the Authorization header.
+     *
+     * @response 200 {
+     *   "user": {"id": 1, "name": "John Doe", "email": "user@example.com", "is_active": true},
+     *   "role": "intern"
+     * }
+     * @response 401 {"message": "Unauthenticated."}
      */
     public function getAuthUser(Request $request)
     {
@@ -124,7 +175,13 @@ class AuthController extends Controller
     }
 
     /**
-     * Logout and revoke token
+     * Logout User
+     *
+     * Revoke the current access token, effectively logging out the user.
+     * The token will no longer be valid for any subsequent API requests.
+     *
+     * @response 200 {"message": "Logged out successfully"}
+     * @response 401 {"message": "Unauthenticated."}
      */
     public function logout(Request $request)
     {

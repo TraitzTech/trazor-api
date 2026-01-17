@@ -15,10 +15,30 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * @tags Logbooks
+ */
 class LogbookController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * List All Logbooks
+     *
+     * Retrieve all logbook entries in the system with intern details,
+     * specialty information, reviewer data, and reviews.
+     *
+     * @response 200 [
+     *   {
+     *     "id": 1,
+     *     "title": "Day 1 - Learning the basics",
+     *     "content": "Today I learned about...",
+     *     "date": "2026-01-15",
+     *     "week_number": 1,
+     *     "hours_worked": 8,
+     *     "status": "pending",
+     *     "intern": {"id": 1, "user": {"name": "John Doe"}, "specialty": {"name": "Software Development"}},
+     *     "reviews": []
+     *   }
+     * ]
      */
     public function index()
     {
@@ -26,7 +46,22 @@ class LogbookController extends Controller
     }
 
     /**
-     * Display a listing of the resource for the authenticated intern.
+     * Get Intern's Logbooks
+     *
+     * Retrieve all logbook entries for the authenticated intern.
+     * Returns entries ordered by most recent first.
+     *
+     * @response 200 [
+     *   {
+     *     "id": 1,
+     *     "title": "Day 1 - Learning the basics",
+     *     "content": "Today I learned about...",
+     *     "date": "2026-01-15",
+     *     "week_number": 1,
+     *     "status": "pending"
+     *   }
+     * ]
+     * @response 403 {"message": "User is not an intern or has no intern profile."}
      */
     public function internLogbooks(Request $request)
     {
@@ -96,7 +131,34 @@ class LogbookController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Create Logbook Entry
+     *
+     * Submit a new daily logbook entry. The week number is automatically calculated
+     * based on the intern's start date. When a week is complete (all 5 weekdays filled),
+     * a PDF is automatically generated.
+     *
+     * **Note:** Only one entry per date is allowed. Duplicate entries will be rejected.
+     *
+     * Admins can create entries on behalf of interns by providing `intern_id`.
+     *
+     * @bodyParam date date required The date of the logbook entry. Example: 2026-01-15
+     * @bodyParam title string required Entry title. Example: Day 1 - Learning the basics
+     * @bodyParam content string required Detailed description of work done. Example: Today I learned about the project structure...
+     * @bodyParam hours_worked numeric Hours worked (0-24). Example: 8
+     * @bodyParam tasks_completed array List of completed tasks. Example: ["Task 1", "Task 2"]
+     * @bodyParam challenges string Challenges faced. Example: Had difficulty with...
+     * @bodyParam learnings string Key learnings. Example: Learned about dependency injection...
+     * @bodyParam next_day_plans string Plans for next day. Example: Will continue working on...
+     * @bodyParam intern_id integer Required for admins creating on behalf of intern. Example: 1
+     *
+     * @response 201 {
+     *   "message": "Logbook Created",
+     *   "logbook": {"id": 1, "title": "Day 1", "date": "2026-01-15", "week_number": 1},
+     *   "week_number": 1,
+     *   "pdf_url": "/storage/logbooks/week_1_INT-2026-0001.pdf"
+     * }
+     * @response 409 {"message": "A logbook entry already exists for this date.", "existing_logbook": {}}
+     * @response 422 {"message": "Invalid input", "errors": {}}
      */
     public function store(Request $request)
     {
@@ -291,7 +353,22 @@ class LogbookController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Show Logbook Entry
+     *
+     * Retrieve detailed information about a specific logbook entry including
+     * intern details, reviews, and specialty supervisors.
+     *
+     * @urlParam id integer required The logbook ID. Example: 1
+     *
+     * @response 200 {
+     *   "id": 1,
+     *   "title": "Day 1 - Learning",
+     *   "content": "Today I learned...",
+     *   "date": "2026-01-15",
+     *   "intern": {"user": {"name": "John"}},
+     *   "reviews": [{"status": "approved", "feedback": "Good work!"}]
+     * }
+     * @response 404 {"message": "No query results for model [App\\Models\\Logbook]"}
      */
     public function show($id)
     {
@@ -304,6 +381,18 @@ class LogbookController extends Controller
         return response()->json($logbook);
     }
 
+    /**
+     * Download Week PDF
+     *
+     * Download the auto-generated PDF for a completed week.
+     * Only available for weeks where all 5 weekday entries have been submitted.
+     *
+     * @urlParam week integer required The week number. Example: 1
+     *
+     * @response 200 Binary PDF download
+     * @response 401 {"message": "Unauthorized."}
+     * @response 404 {"message": "PDF not found."}
+     */
     public function downloadPdf($week, Request $request)
     {
         $intern = AuthHelper::getUserFromBearerToken($request)->intern;
@@ -322,7 +411,25 @@ class LogbookController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Update Logbook Entry
+     *
+     * Update an existing logbook entry's content.
+     *
+     * @urlParam id integer required The logbook ID. Example: 1
+     *
+     * @bodyParam title string The entry title. Example: Updated title
+     * @bodyParam content string The entry content. Example: Updated content...
+     * @bodyParam hours_worked numeric Hours worked. Example: 7
+     * @bodyParam challenges string Challenges faced. Example: Updated challenges...
+     * @bodyParam learnings string Key learnings. Example: Updated learnings...
+     *
+     * @response 200 {
+     *   "message": "Logbook updated successfully",
+     *   "logbook": {"id": 1, "title": "Updated title"}
+     * }
+     * @response 404 {"message": "Logbook not found"}
+     * @response 422 {"message": "Logbook ID is required"}
+     * @response 500 {"message": "An error occurred while updating the logbook"}
      */
     public function update(Request $request, $id)
     {
@@ -349,7 +456,16 @@ class LogbookController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Delete Logbook Entry
+     *
+     * Permanently delete a logbook entry and all associated reviews.
+     *
+     * @urlParam id integer required The logbook ID. Example: 1
+     *
+     * @response 200 {"success": true, "message": "Logbook and all related data deleted successfully"}
+     * @response 404 {"success": false, "message": "Logbook not found"}
+     * @response 422 {"success": false, "message": "Logbook ID is required"}
+     * @response 500 {"success": false, "message": "An error occurred while deleting the logbook"}
      */
     public function destroy($id)
     {
@@ -405,6 +521,24 @@ class LogbookController extends Controller
         }
     }
 
+    /**
+     * Generate Custom PDF
+     *
+     * Manually generate a logbook PDF with provided data.
+     * Useful for custom report generation.
+     *
+     * @bodyParam student array required Student information object.
+     * @bodyParam entries array required Logbook entries array.
+     * @bodyParam period_from date required Start date of the period. Example: 2026-01-13
+     * @bodyParam period_to date required End date of the period. Example: 2026-01-17
+     * @bodyParam week integer required Week number. Example: 1
+     *
+     * @response 200 {
+     *   "message": "Logbook PDF generated",
+     *   "url": "/storage/logbooks/week_1_INT-2026-0001.pdf"
+     * }
+     * @response 422 {"message": "Validation failed"}
+     */
     public function generatePdf(Request $request)
     {
         $data = $request->validate([
@@ -434,7 +568,15 @@ class LogbookController extends Controller
     }
 
     /**
-     * Fix existing logbooks with null week numbers
+     * Fix Week Numbers
+     *
+     * Utility endpoint to fix logbook entries with null week numbers.
+     * Recalculates week numbers based on intern's start date.
+     *
+     * @response 200 {
+     *   "message": "Fixed 5 logbooks",
+     *   "updated_count": 5
+     * }
      */
     public function fixWeekNumbers(Request $request)
     {
@@ -466,7 +608,24 @@ class LogbookController extends Controller
     }
 
     /**
-     * Manually trigger PDF generation for a completed week
+     * Generate Week PDF Manually
+     *
+     * Manually trigger PDF generation for a completed week.
+     * The week must have all 5 weekday entries to be considered complete.
+     *
+     * @bodyParam intern_id integer required The intern ID. Example: 1
+     * @bodyParam week_number integer required The week number (min 1). Example: 1
+     *
+     * @response 200 {
+     *   "message": "PDF generated successfully",
+     *   "filename": "logbooks/week_1_INT-2026-0001.pdf",
+     *   "url": "/storage/logbooks/week_1_INT-2026-0001.pdf",
+     *   "intern_id": 1,
+     *   "week_number": 1
+     * }
+     * @response 400 {"message": "Week is not complete yet"}
+     * @response 422 {"message": "Validation failed", "errors": {}}
+     * @response 500 {"message": "PDF generation failed"}
      */
     public function generateWeekPdf(Request $request)
     {
@@ -519,7 +678,22 @@ class LogbookController extends Controller
     }
 
     /**
-     * Debug method to check week completion status
+     * Check Week Status
+     *
+     * Debug endpoint to check if a specific week is complete.
+     * Returns detailed information about which days have been filled.
+     *
+     * @bodyParam week_number integer required The week number to check. Example: 1
+     *
+     * @response 200 {
+     *   "intern_id": 1,
+     *   "week_number": 1,
+     *   "entries_count": 5,
+     *   "days_filled": [
+     *     {"date": "2026-01-13", "day": "Monday", "day_lower": "monday"}
+     *   ],
+     *   "is_complete": true
+     * }
      */
     public function checkWeekStatus(Request $request)
     {

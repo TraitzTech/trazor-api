@@ -10,10 +10,31 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * @tags Comments
+ */
 class CommentController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * List Comments
+     *
+     * Retrieve all comments, optionally filtered by task.
+     * Each comment includes user and task information.
+     *
+     * @queryParam task_id integer Filter comments by task ID. Example: 1
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": [
+     *     {
+     *       "id": 1,
+     *       "body": "Great progress!",
+     *       "user": {"id": 1, "name": "John Doe"},
+     *       "task": {"id": 1, "title": "Complete Report"}
+     *     }
+     *   ]
+     * }
+     * @response 500 {"success": false, "message": "Failed to retrieve comments"}
      */
     public function index(Request $request)
     {
@@ -94,7 +115,26 @@ class CommentController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Create Comment
+     *
+     * Add a new comment to a task. Automatically notifies all task stakeholders
+     * (task creator, assigned interns, and supervisors) about the new comment.
+     *
+     * @bodyParam body string required The comment content (max 1000 characters). Example: Great progress on this task!
+     * @bodyParam task_id integer required The task to comment on. Example: 1
+     *
+     * @response 201 {
+     *   "success": true,
+     *   "message": "Comment created successfully",
+     *   "data": {
+     *     "id": 1,
+     *     "body": "Great progress on this task!",
+     *     "user": {"id": 5, "name": "John Doe"},
+     *     "task": {"id": 1, "title": "Complete Report"}
+     *   }
+     * }
+     * @response 422 {"success": false, "message": "Validation failed", "errors": {}}
+     * @response 500 {"success": false, "message": "Failed to create comment"}
      */
     public function store(Request $request)
     {
@@ -144,7 +184,23 @@ class CommentController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Show Comment
+     *
+     * Retrieve details of a specific comment with user and task information.
+     *
+     * @urlParam id integer required The comment ID. Example: 1
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": {
+     *     "id": 1,
+     *     "body": "Great progress!",
+     *     "user": {"id": 5, "name": "John Doe"},
+     *     "task": {"id": 1, "title": "Complete Report"}
+     *   }
+     * }
+     * @response 404 {"success": false, "message": "Comment not found"}
+     * @response 500 {"success": false, "message": "Failed to retrieve comment"}
      */
     public function show($id)
     {
@@ -170,7 +226,26 @@ class CommentController extends Controller
     }
 
     /**
-     * Get all comments for a specific task
+     * Get Task Comments
+     *
+     * Retrieve all comments for a specific task, ordered by most recent first.
+     * Includes user information (name, email, avatar) for each comment.
+     *
+     * @urlParam taskId integer required The task ID. Example: 1
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": [
+     *     {
+     *       "id": 1,
+     *       "body": "Great progress!",
+     *       "user": {"id": 5, "name": "John Doe", "email": "john@example.com", "avatar": null},
+     *       "created_at": "2026-01-17T10:30:00Z"
+     *     }
+     *   ]
+     * }
+     * @response 404 {"success": false, "message": "Task not found"}
+     * @response 500 {"success": false, "message": "Failed to retrieve comments"}
      */
     public function getTaskComments($taskId)
     {
@@ -210,7 +285,23 @@ class CommentController extends Controller
     public function edit($id) {}
 
     /**
-     * Update the specified resource in storage.
+     * Update Comment
+     *
+     * Update an existing comment. Only the comment author or an admin can edit a comment.
+     *
+     * @urlParam id integer required The comment ID. Example: 1
+     *
+     * @bodyParam body string required The updated comment content (max 1000 characters). Example: Updated comment text
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "message": "Comment updated successfully",
+     *   "data": {"id": 1, "body": "Updated comment text"}
+     * }
+     * @response 403 {"success": false, "message": "Unauthorized to edit this comment"}
+     * @response 404 {"success": false, "message": "Comment not found"}
+     * @response 422 {"success": false, "message": "Validation failed"}
+     * @response 500 {"success": false, "message": "Failed to update comment"}
      */
     public function update(Request $request, $id)
     {
@@ -264,7 +355,16 @@ class CommentController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Delete Comment
+     *
+     * Permanently delete a comment. Only the comment author or an admin can delete a comment.
+     *
+     * @urlParam id integer required The comment ID. Example: 1
+     *
+     * @response 200 {"success": true, "message": "Comment deleted successfully"}
+     * @response 403 {"success": false, "message": "Unauthorized to delete this comment"}
+     * @response 404 {"success": false, "message": "Comment not found"}
+     * @response 500 {"success": false, "message": "Failed to delete comment"}
      */
     public function destroy(Request $request, $id)
     {

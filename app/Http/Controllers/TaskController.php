@@ -13,10 +13,33 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * @tags Tasks
+ */
 class TaskController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * List All Tasks
+     *
+     * Retrieve all tasks with their assigned interns, specialty, comments, and attachments.
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": [
+     *     {
+     *       "id": 1,
+     *       "title": "Build REST API",
+     *       "description": "Create RESTful endpoints",
+     *       "due_date": "2025-02-15",
+     *       "status": "pending",
+     *       "specialty": {"id": 2, "name": "Software Development"},
+     *       "interns": [],
+     *       "comments": [],
+     *       "attachments": []
+     *     }
+     *   ]
+     * }
+     * @response 500 {"success": false, "message": "Failed to retrieve tasks"}
      */
     public function index()
     {
@@ -40,12 +63,31 @@ class TaskController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Create Task Form
+     *
+     * Placeholder for form creation (not used in API).
      */
     public function create() {}
 
     /**
-     * Store a newly created resource in storage.
+     * Create New Task
+     *
+     * Create a new task and optionally assign it to specific interns or all interns in a specialty.
+     * Push notifications are sent to assigned interns.
+     *
+     * @bodyParam title string required The task title. Example: Build REST API
+     * @bodyParam description string optional Detailed description of the task. Example: Create RESTful endpoints for user management
+     * @bodyParam due_date date optional Due date (must be after today). Example: 2025-02-15
+     * @bodyParam status string optional Task status: pending, in_progress, done. Defaults to pending. Example: pending
+     * @bodyParam specialty_id integer optional Specialty ID to assign task to. Example: 2
+     * @bodyParam intern_ids array optional Specific intern IDs to assign. If not provided, assigns to all interns in specialty. Example: [1, 2, 3]
+     * @response 201 {
+     *   "success": true,
+     *   "message": "Task created successfully",
+     *   "data": {"id": 1, "title": "Build REST API", "status": "pending"}
+     * }
+     * @response 422 {"success": false, "message": "Validation failed", "errors": {}}
+     * @response 500 {"success": false, "message": "Failed to create task"}
      */
     public function store(Request $request)
     {
@@ -113,7 +155,29 @@ class TaskController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Get Task Details
+     *
+     * Retrieve a specific task with full details including assigned interns (with their individual
+     * submission status), specialty, comments, attachments, and progress summary.
+     *
+     * @urlParam id integer required The ID of the task. Example: 1
+     * @response 200 {
+     *   "success": true,
+     *   "data": {
+     *     "id": 1,
+     *     "title": "Build REST API",
+     *     "description": "Create endpoints",
+     *     "due_date": "2025-02-15",
+     *     "status": "pending",
+     *     "progress_summary": {"total": 5, "completed": 2, "in_progress": 1, "pending": 2, "completion_percentage": 40},
+     *     "specialty": {},
+     *     "interns": [{"id": 1, "user": {}, "submission": {"status": "pending"}}],
+     *     "comments": [],
+     *     "attachments": []
+     *   }
+     * }
+     * @response 404 {"success": false, "message": "Task not found"}
+     * @response 500 {"success": false, "message": "Failed to retrieve task"}
      */
     public function show($id)
     {
@@ -176,12 +240,33 @@ class TaskController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Edit Task Form
+     *
+     * Placeholder for edit form (not used in API).
      */
     public function edit($id) {}
 
     /**
-     * Update the specified resource in storage.
+     * Update Task
+     *
+     * Update an existing task's details and optionally reassign interns.
+     * Push notifications are sent when significant changes are made.
+     *
+     * @urlParam id integer required The ID of the task to update. Example: 1
+     * @bodyParam title string required The task title. Example: Updated API Task
+     * @bodyParam description string optional Detailed description. Example: Updated requirements
+     * @bodyParam due_date date optional Due date. Example: 2025-03-01
+     * @bodyParam status string optional Status: pending, in_progress, done. Example: in_progress
+     * @bodyParam specialty_id integer optional Specialty ID. Example: 2
+     * @bodyParam intern_ids array optional Intern IDs to assign. Example: [1, 2]
+     * @response 200 {
+     *   "success": true,
+     *   "message": "Task updated successfully",
+     *   "data": {"id": 1, "title": "Updated API Task"}
+     * }
+     * @response 404 {"success": false, "message": "Task not found"}
+     * @response 422 {"success": false, "message": "Validation failed", "errors": {}}
+     * @response 500 {"success": false, "message": "Failed to update task"}
      */
     public function update(Request $request, $id)
     {
@@ -416,7 +501,21 @@ class TaskController extends Controller
     }
 
     /**
-     * Update task status (admin/supervisor only).
+     * Update Task Status
+     *
+     * Change the status of a task (admin/supervisor only). Sends notifications to all
+     * assigned interns and relevant supervisors about the status change.
+     *
+     * @urlParam id integer required The ID of the task. Example: 1
+     * @bodyParam status string required New status: pending, in_progress, done. Example: in_progress
+     * @response 200 {
+     *   "success": true,
+     *   "message": "Task status updated successfully",
+     *   "data": {"id": 1, "title": "Build API", "status": "in_progress"}
+     * }
+     * @response 400 {"success": false, "message": "Status is already set to the specified value"}
+     * @response 404 {"success": false, "message": "Task not found"}
+     * @response 422 {"success": false, "message": "Validation failed", "errors": {}}
      */
     public function updateStatus(Request $request, $id)
     {
@@ -483,7 +582,15 @@ class TaskController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Delete Task
+     *
+     * Permanently delete a task including all its attachments (physical files), comments,
+     * and intern assignments. This action cannot be undone.
+     *
+     * @urlParam id integer required The ID of the task to delete. Example: 1
+     * @response 200 {"success": true, "message": "Task deleted successfully"}
+     * @response 404 {"success": false, "message": "Task not found"}
+     * @response 500 {"success": false, "message": "Failed to delete task"}
      */
     public function destroy($id)
     {
@@ -586,7 +693,27 @@ class TaskController extends Controller
     }
 
     /**
-     * Update individual intern's task status
+     * Update Intern Task Status
+     *
+     * Update the authenticated intern's status for a specific task (start, complete, add notes).
+     * This updates the pivot table record between the intern and task.
+     *
+     * @urlParam taskId integer required The ID of the task. Example: 1
+     * @bodyParam status string optional New status: pending, in_progress, done. Example: in_progress
+     * @bodyParam intern_notes string optional Notes from the intern about their progress. Example: Completed the API endpoints
+     * @response 200 {
+     *   "success": true,
+     *   "message": "Task status updated successfully",
+     *   "data": {
+     *     "status": "in_progress",
+     *     "started_at": "2025-01-15T10:00:00Z",
+     *     "completed_at": null,
+     *     "intern_notes": "Started working on endpoints"
+     *   }
+     * }
+     * @response 401 {"success": false, "message": "Unauthorized or not an intern"}
+     * @response 404 {"success": false, "message": "Task not found or not assigned to you"}
+     * @response 422 {"success": false, "message": "Validation failed", "errors": {}}
      */
     public function updateInternStatus(Request $request, $taskId)
     {
@@ -687,7 +814,26 @@ class TaskController extends Controller
     }
 
     /**
-     * Get task with individual intern statuses and progress
+     * Get Task with Progress
+     *
+     * Retrieve a task with individual intern statuses and overall progress summary.
+     *
+     * @urlParam id integer required The ID of the task. Example: 1
+     * @response 200 {
+     *   "success": true,
+     *   "data": {
+     *     "task": {"id": 1, "title": "Build API", "status": "pending"},
+     *     "progress_summary": {
+     *       "total": 5,
+     *       "completed": 2,
+     *       "in_progress": 1,
+     *       "pending": 2,
+     *       "completion_percentage": 40
+     *     }
+     *   }
+     * }
+     * @response 404 {"success": false, "message": "Task not found"}
+     * @response 500 {"success": false, "message": "Failed to retrieve task"}
      */
     public function showWithProgress($id)
     {
@@ -722,7 +868,37 @@ class TaskController extends Controller
     }
 
     /**
-     * Get intern's personal task dashboard
+     * Get Intern Dashboard
+     *
+     * Retrieve the authenticated intern's task dashboard with statistics and all assigned tasks.
+     * Includes task details, attachments, comments, and progress information.
+     *
+     * @response 200 {
+     *   "success": true,
+     *   "data": {
+     *     "statistics": {
+     *       "total": 10,
+     *       "pending": 3,
+     *       "in_progress": 4,
+     *       "done": 3,
+     *       "completion_percentage": 30
+     *     },
+     *     "tasks": [
+     *       {
+     *         "id": 1,
+     *         "title": "Build API",
+     *         "status": "pending",
+     *         "specialty": {},
+     *         "assigner": {"id": 1, "name": "Admin"},
+     *         "attachments": [],
+     *         "comments": []
+     *       }
+     *     ]
+     *   }
+     * }
+     * @response 403 {"success": false, "message": "Access denied. User must be an intern."}
+     * @response 404 {"success": false, "message": "Intern profile not found"}
+     * @response 500 {"success": false, "message": "Failed to load dashboard"}
      */
     public function getInternDashboard(Request $request)
     {
