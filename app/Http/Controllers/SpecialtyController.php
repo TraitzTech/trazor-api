@@ -214,14 +214,52 @@ class SpecialtyController extends Controller
      * Get My Specialty
      *
      * Retrieve the specialty associated with the authenticated user (intern or supervisor).
+     * Returns the user's role and their complete specialty details including all interns and supervisors in that specialty.
      *
-     * @response 200 {
+     * @response 200 scenario="Intern User" {
      *   "role": "intern",
      *   "specialty": {
      *     "id": 1,
      *     "name": "Software Development",
      *     "category": "Technology",
      *     "status": "active",
+     *     "description": "Web and mobile application development",
+     *     "requirements": "Basic programming knowledge required",
+     *     "skills": ["JavaScript", "PHP", "Laravel"],
+     *     "partner_companies": ["Company A", "Company B"],
+     *     "created_at": "2025-01-15T10:00:00.000000Z",
+     *     "updated_at": "2025-01-15T10:00:00.000000Z",
+     *     "interns": [
+     *       {
+     *         "id": 1,
+     *         "user_id": 5,
+     *         "specialty_id": 1,
+     *         "user": {"id": 5, "name": "John Doe", "email": "john@example.com"}
+     *       }
+     *     ],
+     *     "supervisors": [
+     *       {
+     *         "id": 1,
+     *         "user_id": 3,
+     *         "specialty_id": 1,
+     *         "user": {"id": 3, "name": "Jane Smith", "email": "jane@example.com"}
+     *       }
+     *     ]
+     *   }
+     * }
+     * @response 200 scenario="Supervisor User" {
+     *   "role": "supervisor",
+     *   "specialty": {
+     *     "id": 1,
+     *     "name": "Software Development",
+     *     "category": "Technology",
+     *     "status": "active",
+     *     "description": "Web and mobile application development",
+     *     "requirements": "Basic programming knowledge required",
+     *     "skills": ["JavaScript", "PHP", "Laravel"],
+     *     "partner_companies": ["Company A", "Company B"],
+     *     "created_at": "2025-01-15T10:00:00.000000Z",
+     *     "updated_at": "2025-01-15T10:00:00.000000Z",
      *     "interns": [],
      *     "supervisors": []
      *   }
